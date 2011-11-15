@@ -3,7 +3,7 @@ import socket
 import json
 
 HOST = ''      # Symbolic name meaning all available interfaces
-PORT = 51094   # Arbitrary non-privileged port
+PORT = 51093   # Arbitrary non-privileged port
 MAX_BUFFSIZE = 4096
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
