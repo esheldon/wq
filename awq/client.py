@@ -29,6 +29,7 @@ import socket
 import sys
 import json
 import os
+import signal 
 
 from optparse import OptionParser
 
@@ -38,7 +39,8 @@ MAX_BUFFSIZE = 4096
 
 
 parser=OptionParser(__doc__)
-
+parser.add_option("-H", "--host-file-to", dest="hostfile",
+                  help="write report to FILE", metavar="FILE")
 try:
     kk=sys.argv.index('--')  ## end of my options
     commandline = " ".join(sys.argv[kk+1:])
@@ -83,23 +85,91 @@ dict['pid'] = os.getpid()
 dict['hostname'] = socket.gethostname()
 
 
+def TalkToServer (dictout):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((HOST, PORT))
+    s.send(json.dumps(dictout))
+    rdict = json.loads(s.recv(MAX_BUFFSIZE))
+    s.close()
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.connect((HOST, PORT))
-s.send(json.dumps(dict))
-rdict = json.loads(s.recv(MAX_BUFFSIZE))
-s.close()
+    if "error" in rdict:
+        print "Error reported by server."
+        print rdict['error']
+        sys.exit(1)
+
+    if ("response"  not in rdict):
+        print "Internal error. Expected a response and got screwed."
+        sys.exit(1)
+
+
+    return rdict
+
+rdict = TalkToServer(dict)
 
 ## now parse what we got back
 
-if "error" in rdict:
-    print "Error reported by server."
-    print rdict['error']
-    sys.exit(1)
-if ("response"  not in rdict):
-    print "Internal error. Expected a response and got screwed."
-    sys.exit(1)
 
 print "Servery says :", rdict["response"]
 
+
+if (command=='ls'):
+    print rdict['queue']
+    sys.exit(0)
+
+if (command=='rm'):
+    print "Done."
+    sys.exit(1)
+
+
+if (not command=='submit'):
+    print " We really shouldn't be here."
+    sys.exit(1)
+
+### Assuming we work with submit now.
+
+def receive_signal(a,b):
+    pass
+
+signal.signal(signal.SIGUSR1, receive_signal)
+
+while (rdict["response"] == "wait"):
+    signal.pause()
+    print "Trying again."
+    rdict = TalkToServer(dict)
+
+
+if (not rdict["response"]== "run"):
+    print "Response from server should be wait or run!"
+    sys.exit(1)
+
+hosts = rdict["hosts"]
+
+try:
+    hostfile=parser.hostfile
+except:
+    hostfile=None
+
+if (hostfile):
+    f= open(hostfile,'w')
+    for host in hosts:
+        f.write (host+"\n")
+    f.close()
+
+
+### Now execute
+target= hosts[0]
+pwd = os.getcwd()
+## here we execute
+os.system ('ssh -t '+target+'  "cd '+pwd+'; bash"')
+
+
+## Now notify the server that we are done.
+
+dict['command'] = 'notify'
+dict['notification'] = 'jobdone'
+
+rdict = TalkToServer(dict)
+print " Job done, servey says:" ,rdict['response']
+
+    
 
