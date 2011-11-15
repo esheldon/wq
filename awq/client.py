@@ -41,49 +41,6 @@ MAX_BUFFSIZE = 4096
 parser=OptionParser(__doc__)
 parser.add_option("-H", "--host-file-to", dest="hostfile",
                   help="write report to FILE", metavar="FILE")
-try:
-    kk=sys.argv.index('--')  ## end of my options
-    commandline = " ".join(sys.argv[kk+1:])
-    myargs=sys.argv[1:kk]
-except:
-     commandline=None
-     myargs=sys.argv[1:]
-
-
-
-options, args = parser.parse_args(myargs)
-
-if len(args) < 1:
-    parser.print_help()
-    sys.exit(0)
-
-commands = ['submit', 'ls', 'rm']
-command=args.pop(0)
-if (command not in commands):
-    print " Bad command, must be on of : ", ','.join(commands)
-    sys.exit(1)
-
-dict={}
-dict['command']=command
-
-if command == 'submit':
-    if (not commandline):
-        print "Need to supply command line."
-        exit(1)
-
-
-    if (len(args)<1):
-        submit_mode = "cores=1"
-        print "No submit mode, assuming: ", submit_mode
-    else:
-        submit_mode = args.pop(0)
-
-    dict['submit_mode']=submit_mode
-    dict['command_line']=commandline
-
-dict['pid'] = os.getpid()
-dict['hostname'] = socket.gethostname()
-
 
 def TalkToServer (dictout):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -104,72 +61,122 @@ def TalkToServer (dictout):
 
     return rdict
 
-rdict = TalkToServer(dict)
-
-## now parse what we got back
-
-
-print "Servery says :", rdict["response"]
-
-
-if (command=='ls'):
-    print rdict['queue']
-    sys.exit(0)
-
-if (command=='rm'):
-    print "Done."
-    sys.exit(1)
-
-
-if (not command=='submit'):
-    print " We really shouldn't be here."
-    sys.exit(1)
-
-### Assuming we work with submit now.
-
 def receive_signal(a,b):
     pass
 
-signal.signal(signal.SIGUSR1, receive_signal)
+def main():
 
-while (rdict["response"] == "wait"):
-    signal.pause()
-    print "Trying again."
+    try:
+        kk=sys.argv.index('--')  ## end of my options
+        commandline = " ".join(sys.argv[kk+1:])
+        myargs=sys.argv[1:kk]
+    except:
+         commandline=None
+         myargs=sys.argv[1:]
+
+
+
+    options, args = parser.parse_args(myargs)
+
+    if len(args) < 1:
+        parser.print_help()
+        sys.exit(0)
+
+    commands = ['submit', 'ls', 'rm']
+    command=args.pop(0)
+    if (command not in commands):
+        print " Bad command, must be on of : ", ','.join(commands)
+        sys.exit(1)
+
+    dict={}
+    dict['command']=command
+
+    if command == 'submit':
+        if (not commandline):
+            print "Need to supply command line."
+            exit(1)
+
+
+        if (len(args)<1):
+            submit_mode = "bycore"
+            print "No submit mode, assuming: ", submit_mode
+        else:
+            submit_mode = args.pop(0)
+
+        dict['submit_mode']=submit_mode
+        dict['command_line']=commandline
+
+    dict['pid'] = os.getpid()
+    dict['hostname'] = socket.gethostname()
+
+
+
     rdict = TalkToServer(dict)
 
-
-if (not rdict["response"]== "run"):
-    print "Response from server should be wait or run!"
-    sys.exit(1)
-
-hosts = rdict["hosts"]
-
-try:
-    hostfile=parser.hostfile
-except:
-    hostfile=None
-
-if (hostfile):
-    f= open(hostfile,'w')
-    for host in hosts:
-        f.write (host+"\n")
-    f.close()
+    ## now parse what we got back
 
 
-### Now execute
-target= hosts[0]
-pwd = os.getcwd()
-## here we execute
-os.system ('ssh -t '+target+'  "cd '+pwd+'; bash"')
+    print "Server says :", rdict["response"]
 
 
-## Now notify the server that we are done.
+    if (command=='ls'):
+        for job in rdict['response']:
+            print job
+        sys.exit(0)
 
-dict['command'] = 'notify'
-dict['notification'] = 'jobdone'
+    if (command=='rm'):
+        print "Done."
+        sys.exit(1)
 
-rdict = TalkToServer(dict)
-print " Job done, servey says:" ,rdict['response']
 
-    
+    if (not command=='submit'):
+        print " We really shouldn't be here."
+        sys.exit(1)
 
+    ### Assuming we work with submit now.
+
+
+    signal.signal(signal.SIGUSR1, receive_signal)
+
+    while (rdict["response"] == "wait"):
+        signal.pause()
+        #print "Trying again."
+        #rdict = TalkToServer(dict)
+
+
+    if (rdict["response"] != "run"):
+        print "Response from server should be wait or run!"
+        sys.exit(1)
+
+    hosts = rdict["hosts"]
+
+    try:
+        hostfile=parser.hostfile
+    except:
+        hostfile=None
+
+    if (hostfile):
+        f= open(hostfile,'w')
+        for host in hosts:
+            f.write (host+"\n")
+        f.close()
+
+
+    ### Now execute
+    target= hosts[0]
+    pwd = os.getcwd()
+    ## here we execute
+    os.system ('ssh -t '+target+'  "cd '+pwd+'; bash"')
+
+
+    ## Now notify the server that we are done.
+
+    dict['command'] = 'notify'
+    dict['notification'] = 'jobdone'
+
+    rdict = TalkToServer(dict)
+    print " Job done, servey says:" ,rdict['response']
+
+        
+if __name__=="__main__":
+    main()
