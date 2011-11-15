@@ -14,7 +14,8 @@ sock.settimeout(30.0)
 sock.listen(1)
 
 # this can be configurable
-_cluster_description_file='./somename.txt'
+_cluster_description_file='./bnl_desc.txt'
+
 
 class Request(dict):
     def __init__(self, request):
@@ -23,28 +24,215 @@ class Request(dict):
         self.request = json.loads(self.request_string)
 
 
+
+class Node:
+    def __init__ (self, line):
+        self.host, self.ncores, self.mem, self.grps = line.split()
+        self.ncores=int(self.ncores)
+        self.mem=float(self.mem)
+        self.grps=self.grps.split(',')
+        self.used=0
+
+    def Reserve(self):
+        self.used+=1
+        if (self.used>self.ncores):
+            print "Internal error."
+            sys.exit(1)
+
+    def Unreserve(self):
+        self.used-=1
+        if (self.used<0):
+            print "Internal error."
+            sys.exit(1)
+            
+    
+
 class Cluster:
     def __init__(self,filename):
         self.filename=filename
+        self.nodes={}
+        for line in open(filename).readlines():
+            nd = Node(line);
+            self.nodes[nd.host] = nd
+    
+    def Reserve(self,hosts):
+        for h in hosts:
+            self.nodes[h].Reserve()
+
+    def Unreserve(self,hosts):
+        for h in hosts:
+            self.nodes[h].Unreserve()
+
+    def Status(self):
+        res={}
+        tot=0
+        used=0
+        use=[]
+        for h in self.nodes.keys():
+            tot+=self.nodes[h].ncores
+            used+=self.nodes[h].used
+            if (self.nodes[h].used>0):
+              use.append((h,self.nodes[h].used))  
+
+        res['used']=used
+        res['ncores']=tot
+        res['nnodes']=len(self.nodes)
+        res['use']=use
+        return res
+
+
+
 
 class Job(dict):
-    cluster=None
-    def __init__(self, message):
-        if cluster is None:
-            cluster = Cluster(_cluster_description_file)
+    #cluster=None
+
+    def __init__(self, message, cluster):
+        #print self.cluster
+        #if cluster==None:
+        #    print "Loading cluster"
+        #    cluster = Cluster(_cluster_description_file)
 
         # make sure pid,require are in message
         # and copy them into self
         
+        self.cluster=cluster
+
         for k in message:
             self[k] = message[k]
         self['status'] = 'wait'
 
-    def start(self):
-        self['status'] = 'run'
+    def match(self):
+        if (self['status']!='wait'):
+            return
 
-    def stop(self):
-        self['status'] = 'done'
+        reqs=self['require']
+        submit_mode=reqs['submit_mode']
+
+        pmatch=False
+        match=False
+        hosts=[] # actually matched hosts
+
+        if (submit_mode=='bycore'):
+            N=reqs['N']
+            Np=N
+            for h in self.cluster.nodes.keys():
+                nd = self.cluster.nodes[h]
+
+                ## is this node actually what we want
+                ing=reqs['in_group']
+                if (len(ing)>0): ##any group in any group
+                    ok=False
+                    for g in ing:
+                        if g in nd.grps:
+                            ok=True
+                            break
+                    if (not ok):
+                        continue ### not in the group
+                        
+                ing=reqs['not_in_group']
+                if (len(ing)>0): ##any group in any group
+                    ok=True
+                    for g in ing:
+                        if g in nd.grps:
+                            ok=False
+                            break
+                    if (not ok):
+                        continue ### not in the group
+
+                if (nd.ncores>Np):
+                    pmatch=True
+                else:
+                    Np-=nd.ncores
+
+                nfree= nd.ncores-nd.used
+                if (nfree>=N):
+                    for x in range(N):
+                        hosts.append(h)
+                    N=0
+                    match=True
+                    break #we are done
+                else:
+                    N-=nfree
+                    for x in range(nfree):
+                        hosts.append(h)
+
+        elif (submit_mode=='bynode'):
+            N=reqs['N']
+            Np=N
+            for h in self.cluster.nodes.keys():
+                nd = self.cluster.nodes[h]
+                if (nd.ncores<reqs['min_cores']):
+                    continue
+                ## is this node actually what we want
+                ing=reqs['in_group']
+                if (len(ing)>0): ##any group in any group
+                    ok=False
+                    for g in ing:
+                        if g in nd.grps:
+                            ok=True
+                            break
+                    if (not ok):
+                        continue ### not in the group
+
+                        
+                ing=reqs['not_in_group']
+                if (len(ing)>0): ##any group in any group
+                    ok=True
+                    for g in ing:
+                        if g in nd.grps:
+                            ok=False
+                            break
+                    if (not ok):
+                        continue ### not in the group
+                
+                Np-=1
+                if (Np==0):
+                    pmatch=True
+                if (nd.used==0):
+                    N-=1
+                    for x in range(nd.ncores):
+                        hosts.append(h)
+                    if (N==0):
+                        match=True
+                        break
+
+
+
+        elif (submit_mode=='exactnode'):
+            h = reqs['node']
+            nd = self.cluster.nodes[h]
+            N= reqs['N']
+            
+            if (nd.ncores>=N):
+                pmatch=True
+
+            nfree = nd.ncores-nd.used
+            if (nfree>=N):
+                for x in range(N):
+                    hosts.append(h)
+                N=0
+                match=True
+        else:
+            pmatch=False ## unknown request never mathces
+            pass
+                        
+        if (pmatch):
+            if match:
+                self['hosts']=hosts
+                self.cluster.Reserve(hosts)
+                self['status']='run'
+            else:
+                 self['status']='wait'
+        else:
+            self['status']='nevermatch'
+                    
+
+    def unmatch(self):
+        if (self['status']=='run'):
+            self.cluster.Unreserve(self['hosts'])
+            self['status'] = 'done'
+        
+
 
     def asdict(self):
         d={}
@@ -155,7 +343,9 @@ class JobQueue:
 
 
 def main():
+    Cluster(__cluster_description_file)
     queue = JobQueue()
+
 
     try:
         while 1:

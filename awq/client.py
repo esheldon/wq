@@ -40,7 +40,24 @@ MAX_BUFFSIZE = 4096
 
 parser=OptionParser(__doc__)
 parser.add_option("-H", "--host-file-to", dest="hostfile",
-                  help="write report to FILE", metavar="FILE")
+                  help="write hostfile to")
+
+parser.add_option("-n", "--num-units", dest="N",
+                  help="Number of units (cores,nodes)", default=1)
+
+parser.add_option("-g", "--in-group", dest="ingr",
+                  help="must be in group", default="")
+
+parser.add_option("-x", "--not-in-group", dest="ningr",
+                  help="most not be in group", default="")
+
+parser.add_option("-c", "--min-cores", dest="min_cores",
+                  help="min cores when asking bynode", default=1)
+
+parser.add_option("-d", "--node", dest="node",
+                  help="node when asking exactnode", default="")
+
+
 
 def TalkToServer (dictout):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -90,6 +107,7 @@ def main():
 
     dict={}
     dict['command']=command
+    req={}
 
     if command == 'submit':
         if (not commandline):
@@ -103,8 +121,15 @@ def main():
         else:
             submit_mode = args.pop(0)
 
-        dict['submit_mode']=submit_mode
+        req['submit_mode']=submit_mode
+        req['N']=int(options.N)
+        req['node']=options.node
+        req['in_group']=options.ingr.split(',')
+        req['not_in_group']=options.ningr.split(',')
+        req['min_cores']=int(options.min_cores)
+        
         dict['command_line']=commandline
+        dict['require']=req
 
     dict['pid'] = os.getpid()
     dict['hostname'] = socket.gethostname()
@@ -151,7 +176,7 @@ def main():
     hosts = rdict["hosts"]
 
     try:
-        hostfile=parser.hostfile
+        hostfile=options.hostfile
     except:
         hostfile=None
 
