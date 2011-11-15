@@ -1,5 +1,6 @@
 # Echo server program ipv4
 import socket
+import json
 
 HOST = ''      # Symbolic name meaning all available interfaces
 PORT = 51093   # Arbitrary non-privileged port
@@ -17,8 +18,15 @@ try:
             data = conn.recv(MAX_BUFFSIZE)
             if not data: 
                 break
-            print 'got command:',data,'; sending back'
-            conn.send(data)
+            try:
+                obj=json.loads(data)
+                print 'got command:',data,'; sending back'
+                ret=json.dumps({"response":"OK"})
+                conn.send(ret)
+            except:
+                ret = {"error":"could not parse JSON request: '%s'" % data}
+                ret = json.dumps(ret)
+                conn.send(ret)
         conn.close()
 
 except KeyboardInterrupt:
