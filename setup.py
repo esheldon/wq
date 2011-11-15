@@ -1,7 +1,7 @@
 import distutils
 from distutils.core import setup
 
-description = "A simple work queue that actually work.s"
+description = "A simple work queue that actually works."
 
 setup(name="awq", 
       version="0.1.0",
