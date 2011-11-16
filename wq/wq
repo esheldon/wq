@@ -22,15 +22,16 @@ import sys
 import json
 import os
 import signal 
+import wq
 
 from optparse import OptionParser
 
 # need to move this into server.py and require a real installation
 _COMMANDS = ['serve','sub','ls','stat','rm','refresh']
 
-HOST = ''      # Symbolic name meaning all available interfaces
-PORT = 51093   # Arbitrary non-privileged port
-MAX_BUFFSIZE = 4096
+pars={'host':'',      # Symbolic name meaning all available interfaces
+      'port':wq.DEFAULT_PORT ,
+      'max_buffsize':wq.MAX_BUFFSIZE}
 
 
 class ServerWrapper:
@@ -38,13 +39,13 @@ class ServerWrapper:
     usage: wq serve cluster_def_file
     """
     def __init__(self, args):
-        import server
+        import wq
         parser=OptionParser(ServerWrapper.__doc__)
         if len(args) < 1:
             parser.print_help()
             sys.exit(1)
 
-        self.srv = server.Server(args[0])
+        self.srv = wq.server.Server(args[0], port=pars['port'])
     def execute(self):
         self.srv.run()
 
@@ -282,12 +283,12 @@ class Submitter(dict):
 
 def send_message(message):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect((HOST, PORT))
+    sock.connect((pars['host'], pars['port']))
 
     try:
         sock.send(json.dumps(message))
 
-        data = sock.recv(MAX_BUFFSIZE)
+        data = sock.recv(pars['max_buffsize'])
 
         #print 'data from server:',data
         rdict = json.loads(data)
@@ -328,6 +329,9 @@ def get_command_obj(args):
 def main():
 
     parser=OptionParser(__doc__)
+    # this won't be used in the usual way
+    parser.add_option("-p", "--port", default=None, help="port for socket")
+
     args = sys.argv[1:]
     if len(args) == 0:
         parser.print_help()
@@ -336,6 +340,15 @@ def main():
     if args[0] == '-h':
         parser.print_help()
         sys.exit(1)
+
+    if args[0] == '-p':
+        del args[0]
+        try:
+            pars['port'] = int(args[0])
+        except:
+            print 'Could not extract port from input: %s' % args[1]
+            sys.exit(1)
+        del args[0]
 
     cmd = args[0]
     cmd_obj = get_command_obj(args)

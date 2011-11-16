@@ -17,7 +17,7 @@ import sys
 import os
 
 HOST = ''      # Symbolic name meaning all available interfaces
-PORT = 51093   # Arbitrary non-privileged port
+DEFAULT_PORT = 51093   # Arbitrary non-privileged port
 MAX_BUFFSIZE = 4096
 
 # only listen for this many seconds, then refresh the queue
@@ -25,15 +25,21 @@ SOCK_TIMEOUT = 30.0
 
 from optparse import OptionParser
 parser=OptionParser(__doc__)
+parser.add_option("-p", "--port", default=None, help="port for socket")
 
 class Server:
-    def __init__(self, cluster_file):
+    def __init__(self, cluster_file, port=None):
         self.cluster_file = cluster_file
         self.queue = JobQueue(cluster_file)
+        
+        if port is None:
+            self.port = DEFAULT_PORT
+        else:
+            self.port=port
 
     def open_socket(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.bind((HOST, PORT))
+        self.sock.bind((HOST, self.port))
         self.sock.settimeout(SOCK_TIMEOUT)
 
     def wait_for_connection(self):
@@ -700,7 +706,7 @@ def main():
         sys.exit(45)
 
     cluster_file = args[0]
-    srv = Server(cluster_file)
+    srv = Server(cluster_file, port=options.port)
     
     srv.run()
 
