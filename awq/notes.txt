@@ -1,0 +1,10 @@
+in the require, node name is just called "node" but in the Node object it is
+called "host".  We should be consistent, maybe just "host"
+
+And make the matching be
+
+    bycore: require a certain number of cores
+    bynode: require a certain number of nodes
+    byhost: require exact hostname match
+
+

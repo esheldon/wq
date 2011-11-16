@@ -1,4 +1,13 @@
-# Echo server program ipv4
+"""
+    %prog [options] cluster_description_fname
+
+The description file is 
+
+    hostname ncores mem labels
+
+The labels are optional.
+"""
+
 import socket
 import json
 import copy
@@ -13,9 +22,8 @@ sock.bind((HOST, PORT))
 sock.settimeout(30.0)
 sock.listen(1)
 
-# this can be configurable
-_cluster_description_file='./bnl_desc.txt'
-
+from optparse import OptionParser
+parser=OptionParser(__doc__)
 
 class Request(dict):
     def __init__(self, request):
@@ -27,11 +35,18 @@ class Request(dict):
 
 class Node:
     def __init__ (self, line):
-        self.host, self.ncores, self.mem, self.grps = line.split()
-        self.ncores=int(self.ncores)
-        self.mem=float(self.mem)
-        self.grps=self.grps.split(',')
-        self.used=0
+        ls = line.split()
+        host, ncores, mem = ls[0:3]
+
+        if len(ls) > 3:
+            self.grps = ls[3].split(',')
+        else:
+            self.grps = []
+
+        self.host   = host
+        self.ncores = int(ncores)
+        self.mem    = float(mem)
+        self.used   = 0
 
     def Reserve(self):
         self.used+=1
@@ -51,7 +66,8 @@ class Cluster:
     def __init__(self,filename):
         self.filename=filename
         self.nodes={}
-        for line in open(filename).readlines():
+
+        for line in open(filename):
             nd = Node(line);
             self.nodes[nd.host] = nd
     
@@ -82,52 +98,48 @@ class Cluster:
 
 
 
-
 class Job(dict):
-    #cluster=None
 
-    def __init__(self, message, cluster):
-        #print self.cluster
-        #if cluster==None:
-        #    print "Loading cluster"
-        #    cluster = Cluster(_cluster_description_file)
-
+    def __init__(self, message):
         # make sure pid,require are in message
         # and copy them into self
-        
-        self.cluster=cluster
 
         for k in message:
             self[k] = message[k]
         self['status'] = 'wait'
 
-    def match(self):
+    def match(self, cluster):
         if (self['status']!='wait'):
             return
 
         submit_mode=self['require']['submit_mode']
 
+        # can also add reasons from the match methods
+        # later
+
+        reason=None
         if (submit_mode=='bycore'):
-            pmatch, match, hosts = self.match_bycore()
+            pmatch, match, hosts = self.match_bycore(cluster)
         elif (submit_mode=='bynode'):
-            pmatch, match, hosts = self.match_bynode()
-        elif (submit_mode=='exactnode'):
-            pmatch, match, hosts = self.match_exactnode()
+            pmatch, match, hosts = self.match_bynode(cluster)
+        elif (submit_mode=='byhost'):
+            pmatch, match, hosts = self.match_byhost(cluster)
         else:
             pmatch=False ## unknown request never mathces
+            reason="bad submit_mode '%s'" % submit_mode
 
-        if (pmatch):
+        if pmatch:
             if match:
                 self['hosts']=hosts
-                self.cluster.Reserve(hosts)
+                cluster.Reserve(hosts)
                 self['status']='run'
             else:
                  self['status']='wait'
         else:
             self['status']='nevermatch'
-                    
+            self['reason']=reason
 
-    def match_bycore(self):
+    def match_bycore(self, cluster):
         reqs = self['require']
         N=reqs['N']
         Np=N
@@ -136,8 +148,8 @@ class Job(dict):
         match=False
         hosts=[] # actually matched hosts
 
-        for h in self.cluster.nodes:
-            nd = self.cluster.nodes[h]
+        for h in cluster.nodes:
+            nd = cluster.nodes[h]
 
             ## is this node actually what we want
             ing=reqs['in_group']
@@ -180,7 +192,7 @@ class Job(dict):
         return pmatch, match, hosts
 
 
-    def match_bynode(self):
+    def match_bynode(self, cluster):
         reqs = self['require']
         N=reqs['N']
         Np=N
@@ -192,8 +204,8 @@ class Job(dict):
 
         N=reqs['N']
         Np=N
-        for h in self.cluster.nodes:
-            nd = self.cluster.nodes[h]
+        for h in cluster.nodes:
+            nd = cluster.nodes[h]
             if (nd.ncores<reqs['min_cores']):
                 continue
             ## is this node actually what we want
@@ -231,10 +243,15 @@ class Job(dict):
 
         return pmatch, match, hosts
 
-    def match_exactnode(self):
+    def match_byhost(self, cluster):
         reqs = self['require']
-        h = reqs['node']
-        nd = self.cluster.nodes[h]
+        h = reqs['host']
+
+        # make sure the node name exists
+        if h not in cluster.nodes:
+            return False, False, []
+
+        nd = cluster.nodes[h]
         N= reqs['N']
         
         pmatch=False
@@ -253,11 +270,10 @@ class Job(dict):
 
         return pmatch, match, hosts
 
-    def unmatch(self):
+    def unmatch(self, cluster):
         if (self['status']=='run'):
-            self.cluster.Unreserve(self['hosts'])
+            cluster.Unreserve(self['hosts'])
             self['status'] = 'done'
-        
 
 
     def asdict(self):
@@ -267,7 +283,9 @@ class Job(dict):
         return d
 
 class JobQueue:
-    def __init__(self):
+    def __init__(self, cluster_file):
+        print "Loading cluster"
+        self.cluster = Cluster(cluster_file)
         self.queue = []
 
     def process_message(self, message):
@@ -287,6 +305,8 @@ class JobQueue:
             self._process_submit_request(message)
         elif command == 'ls' or command == 'list':
             self._process_listing_request(message)
+        elif command[0:4] == 'stat':
+            self._process_status_request(message)
         elif command == 'rm' or command == 'remove':
             self._process_remove_request(message)
         elif command == 'notify':
@@ -316,6 +336,9 @@ class JobQueue:
             listing.append(job.asdict())
         
         self.response['response'] = listing
+
+    def _process_status_request(self, message):
+        self.response['response'] = self.cluster.Status()
 
     def _process_remove_request(self, message):
         pid = message.get('pid',None)
@@ -368,10 +391,16 @@ class JobQueue:
         return self.response
 
 
+    
 def main():
-    Cluster(__cluster_description_file)
-    queue = JobQueue()
 
+    options, args = parser.parse_args(sys.argv[1:])
+    if len(args) < 1:
+        parser.print_help()
+        sys.exit(45)
+
+    cluster_file = args[1]
+    queue = JobQueue(cluster_file)
 
     try:
         while True:
