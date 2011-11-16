@@ -183,6 +183,9 @@ class Job(dict):
         elif 'user' not in self:
             self['status'] = 'nevermatch'
             self['reason'] = "'user' field not in message"
+        elif 'commandline' not in self:
+            self['status'] = 'nevermatch'
+            self['reason'] = "'commandline' field not in message"
         else:
             self['status'] = 'wait'
             self['reason'] = ''
@@ -221,6 +224,7 @@ class Job(dict):
                 self['status']='run'
             else:
                  self['status']='wait'
+                 self['reason']=reason
         else:
             self['status']='nevermatch'
             self['reason']=reason
@@ -474,13 +478,12 @@ class Job(dict):
             pmatch=False
             reason = 'Need to specify group'
         else:
-            ing=ing[0]
-            for h in self.cluster.nodes.keys():
-                nd = self.cluster.nodes[h]
-                if ing in nd.grps:
+            for h in cluster.nodes:
+                nd = cluster.nodes[h]
+                if g in nd.grps:
                     pmatch=True
                     match=True
-                    if (nd.use>0):
+                    if (nd.used>0):
                         match=False ## we actually demand the entire group
                         reason = 'Host '+h+' not entirely free.'
                         break
@@ -655,6 +658,7 @@ class JobQueue:
             return
 
     def _remove(self, pid, force=False):
+        found = False
         for i,job in enumerate(self.queue):
             if job['pid'] == pid:
                 if (force):
@@ -669,8 +673,9 @@ class JobQueue:
 
     def _signal_terminate(self,pid):
         if self._pid_exists(pid):
+            import time
             os.kill(pid,signal.SIGTERM)
-            sleep (2) ## sleep  a bit
+            time.sleep (2) ## sleep  a bit
             if (self._pid_exists(pid)):
                 os.kill(pid,signal.SIGKILL)
 
