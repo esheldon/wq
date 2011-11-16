@@ -500,7 +500,7 @@ class JobQueue:
         else:
             self._process_command(message)
 
-    def refresh(self):
+    def refresh(self, purge=False):
         """
         refresh the job list
 
@@ -526,6 +526,7 @@ class JobQueue:
                 if job['status'] == 'run':
                     # *now* send a signal to start it
                     self._signal_start(job['pid'])
+
 
     def get_response(self):
         return self.response
@@ -602,6 +603,7 @@ class JobQueue:
                 self.response['error'] = "remove requests must contain the 'pid' field"
                 return
             self._remove(pid)
+            self._refresh()
         elif notifi == 'refresh':
             self._refresh()
         else:
