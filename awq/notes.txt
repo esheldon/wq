@@ -1,3 +1,10 @@
+Some things to think about:
+
+    - will the socket read work with two simultaneous requests?
+    - What if the result is larger than the buffer?  We would have
+      to keep reading until the read bytes are not equal to buffsize
+      I guess.  This is a worry for listings where it could get long.
+
 in the require, node name is just called "node" but in the Node object it is
 called "host".  We should be consistent, maybe just "host"
 
