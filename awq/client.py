@@ -60,11 +60,18 @@ parser.add_option("-d", "--node", dest="node",
 
 
 def TalkToServer (dictout):
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((HOST, PORT))
-    s.send(json.dumps(dictout))
-    rdict = json.loads(s.recv(MAX_BUFFSIZE))
-    s.close()
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((HOST, PORT))
+    sock.send(json.dumps(dictout))
+
+    # read in chunks
+    data=''
+    tdata='junk'
+    while tdata:
+        tdata = sock.recv(MAX_BUFFSIZE)
+        data += tdata
+    rdict = json.loads(data)
+    sock.close()
 
     if "error" in rdict:
         print "Error reported by server."
@@ -88,10 +95,8 @@ def main():
         commandline = " ".join(sys.argv[kk+1:])
         myargs=sys.argv[1:kk]
     except:
-         commandline=None
-         myargs=sys.argv[1:]
-
-
+        commandline=None
+        myargs=sys.argv[1:]
 
     options, args = parser.parse_args(myargs)
 
@@ -102,7 +107,7 @@ def main():
     commands = ['submit', 'ls', 'rm']
     command=args.pop(0)
     if (command not in commands):
-        print " Bad command, must be on of : ", ','.join(commands)
+        print "Bad command '%s', must be one of: %s" % (command,','.join(commands))
         sys.exit(1)
 
     dict={}

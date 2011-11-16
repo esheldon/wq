@@ -15,13 +15,11 @@ cluster = server.Cluster('bnl_desc.txt')
 
 req={}
 req['submit_mode']='bycore'
-req['in_group']=[]
-req['not_in_group']=[]
 req['N']=6
 
 print '-----------'
 
-j = server.Job ({'require':req})
+j = server.Job ({'require':req,'pid':0})
 print cluster.Status()
 j.match(cluster)
 print j['status']
@@ -29,7 +27,7 @@ print cluster.Status()
 
 print '-----------'
 
-j2 = server.Job ({'require':req})
+j2 = server.Job ({'require':req,'pid':1})
 j2.match(cluster)
 print j2['status']
 print cluster.Status()
@@ -43,7 +41,7 @@ req['in_group']=['gen4']
 req['not_in_group']=[]
 req['min_cores']=0
 req['N']=6
-j3 = server.Job ({'require':req})
+j3 = server.Job ({'require':req,'pid':2})
 j3.match(cluster)
 print j3['status']
 print cluster.Status()
@@ -55,14 +53,14 @@ req={}
 req['submit_mode']='byhost'
 req['host']='astro0001'
 req['N']=10
-j4 = server.Job ({'require':req})
+j4 = server.Job ({'require':req,'pid':3})
 j4.match(cluster)
 print j4['status']
 print cluster.Status()
 
 print '-----------'
 
-j5 = server.Job ({'require':req})
+j5 = server.Job ({'require':req,'pid':4})
 j5.match(cluster)
 
 print j4['status'], j5['status']

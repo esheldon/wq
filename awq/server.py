@@ -106,10 +106,21 @@ class Job(dict):
 
         for k in message:
             self[k] = message[k]
-        self['status'] = 'wait'
+
+        if 'require' not in self:
+            self['status'] = 'nevermatch'
+            self['reason'] = "'require' field not in message"
+        elif 'pid' not in self:
+            self['status'] = 'nevermatch'
+            self['reason'] = "'pid' field not in message"
+        else:
+            self['status'] = 'wait'
+
 
     def match(self, cluster):
-        if (self['status']!='wait'):
+        if self['status'] == 'nevermatch':
+            return
+        if self['status'] != 'wait':
             return
 
         submit_mode=self['require']['submit_mode']
@@ -117,13 +128,12 @@ class Job(dict):
         # can also add reasons from the match methods
         # later
 
-        reason=None
         if (submit_mode=='bycore'):
-            pmatch, match, hosts = self.match_bycore(cluster)
+            pmatch, match, hosts, reason = self._match_bycore(cluster)
         elif (submit_mode=='bynode'):
-            pmatch, match, hosts = self.match_bynode(cluster)
+            pmatch, match, hosts, reason = self._match_bynode(cluster)
         elif (submit_mode=='byhost'):
-            pmatch, match, hosts = self.match_byhost(cluster)
+            pmatch, match, hosts,reason = self._match_byhost(cluster)
         else:
             pmatch=False ## unknown request never mathces
             reason="bad submit_mode '%s'" % submit_mode
@@ -139,21 +149,29 @@ class Job(dict):
             self['status']='nevermatch'
             self['reason']=reason
 
-    def match_bycore(self, cluster):
-        reqs = self['require']
-        N=reqs['N']
-        Np=N
+    def _match_bycore(self, cluster):
 
         pmatch=False
         match=False
         hosts=[] # actually matched hosts
+        reason=''
+
+        reqs = self['require']
+
+        N = reqs.get('N', None)
+        if N is None:
+            reason = "field 'N' not in message"
+            return pmatch, match, hosts, reason
+
+
+        Np=N
 
         for h in cluster.nodes:
             nd = cluster.nodes[h]
 
             ## is this node actually what we want
-            ing=reqs['in_group']
-            if (len(ing)>0): ##any group in any group
+            ing = reqs.get('in_group',[])
+            if len(ing) > 0: ##any group in any group
                 ok=False
                 for g in ing:
                     if g in nd.grps:
@@ -162,8 +180,8 @@ class Job(dict):
                 if (not ok):
                     continue ### not in the group
                     
-            ing=reqs['not_in_group']
-            if (len(ing)>0): ##any group in any group
+            ing = reqs.get('not_in_group',[])
+            if len(ing) > 0: ##any group in any group
                 ok=True
                 for g in ing:
                     if g in nd.grps:
@@ -189,28 +207,33 @@ class Job(dict):
                 for x in xrange(nfree):
                     hosts.append(h)
 
-        return pmatch, match, hosts
+        return pmatch, match, hosts, reason
 
 
-    def match_bynode(self, cluster):
-        reqs = self['require']
-        N=reqs['N']
-        Np=N
-
+    def _match_bynode(self, cluster):
         pmatch=False
         match=False
         hosts=[] # actually matched hosts
+        reason=''
 
+        reqs = self['require']
 
-        N=reqs['N']
+        N = reqs.get('N', None)
+        if N is None:
+            reason = "field 'N' not in message"
+            return pmatch, match, hosts, reason
+
         Np=N
+
         for h in cluster.nodes:
             nd = cluster.nodes[h]
-            if (nd.ncores<reqs['min_cores']):
+            min_cores = reqs.get('min_cores',0)
+            if nd.ncores < min_cores:
                 continue
+
             ## is this node actually what we want
-            ing=reqs['in_group']
-            if (len(ing)>0): ##any group in any group
+            ing = reqs.get('in_group',[])
+            if len(ing) > 0: ##any group in any group
                 ok=False
                 for g in ing:
                     if g in nd.grps:
@@ -219,9 +242,8 @@ class Job(dict):
                 if (not ok):
                     continue ### not in the group
 
-                    
-            ing=reqs['not_in_group']
-            if (len(ing)>0): ##any group in any group
+            ing = reqs.get('not_in_group',[])
+            if len(ing) > 0: ##any group in any group
                 ok=True
                 for g in ing:
                     if g in nd.grps:
@@ -241,22 +263,30 @@ class Job(dict):
                     match=True
                     break
 
-        return pmatch, match, hosts
+        return pmatch, match, hosts, reason
 
-    def match_byhost(self, cluster):
+    def _match_byhost(self, cluster):
+
+        pmatch=False
+        match=False
+        hosts=[] # actually matched hosts
+        reason=''
+
         reqs = self['require']
-        h = reqs['host']
+
+        h = reqs.get('host',None)
+        if h is None:
+            reason = "'host' field not in message"
+            return pmatch, match, hosts, reason
 
         # make sure the node name exists
         if h not in cluster.nodes:
-            return False, False, []
+            reason = "host '%s' does not exist" % h
+            return pmatch, match, hosts, reason
 
         nd = cluster.nodes[h]
         N= reqs['N']
         
-        pmatch=False
-        match=False
-        hosts=[] # actually matched hosts
 
         if (nd.ncores>=N):
             pmatch=True
@@ -268,10 +298,10 @@ class Job(dict):
             N=0
             match=True
 
-        return pmatch, match, hosts
+        return pmatch, match, hosts, reason
 
     def unmatch(self, cluster):
-        if (self['status']=='run'):
+        if self['status'] == 'run':
             cluster.Unreserve(self['hosts'])
             self['status'] = 'done'
 
@@ -414,33 +444,35 @@ def main():
                     print 'refreshing queue'
                     queue.refresh()
 
-            while True:
-                # this is just in case the data are larger than the buffer
-                data = conn.recv(MAX_BUFFSIZE)
+            data=''
+            tdata='junk'
+            while tdata:
+                tdata = conn.recv(MAX_BUFFSIZE)
+                data += tdata
 
-                print 'data:',data
-                if not data: 
-                    break
-                try:
-                    message =json.loads(data)
-                    print 'got JSON request:',message
-                except:
-                    ret = {"error":"could not e JSON request: '%s'" % data}
-                    ret = json.dumps(ret)
-                    conn.send(ret)
-                    break
+            print 'data:',data
+            if not data: 
+                break
+            try:
+                message =json.loads(data)
+                print 'got JSON request:',message
+            except:
+                ret = {"error":"could not e JSON request: '%s'" % data}
+                ret = json.dumps(ret)
+                conn.send(ret)
+                break
 
-                queue.process_message(message)
-                response = queue.get_response()
+            queue.process_message(message)
+            response = queue.get_response()
 
-                try:
-                    json_response = json.dumps(response)
-                except:
-                    err = {"error":"server error creating JSON response from '%s'" % ret}
-                    json_response = json.dumps(err)
+            try:
+                json_response = json.dumps(response)
+            except:
+                err = {"error":"server error creating JSON response from '%s'" % ret}
+                json_response = json.dumps(err)
 
-                print 'response:',json_response
-                conn.send(json_response)
+            print 'response:',json_response
+            conn.send(json_response)
 
             conn.close()
 
