@@ -1,5 +1,5 @@
 """
-    %prog [options] cluster_description_fname
+    %prog [options] cluster_description_file
 
 The description file is 
 
@@ -11,25 +11,87 @@ The labels are optional.
 import socket
 import json
 import copy
+import sys
 
 HOST = ''      # Symbolic name meaning all available interfaces
 PORT = 51093   # Arbitrary non-privileged port
 MAX_BUFFSIZE = 4096
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.bind((HOST, PORT))
 # only listen for this many seconds, then refresh the queue
-sock.settimeout(30.0)
-sock.listen(1)
+SOCK_TIMEOUT = 30.0
 
 from optparse import OptionParser
 parser=OptionParser(__doc__)
 
-class Request(dict):
-    def __init__(self, request):
-        self.request_string = request
-    def json_decode(self):
-        self.request = json.loads(self.request_string)
+class Server:
+    def __init__(self, cluster_file):
+        self.cluster_file = cluster_file
+        self.queue = JobQueue(cluster_file)
+
+    def open_socket(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.bind((HOST, PORT))
+        self.sock.settimeout(SOCK_TIMEOUT)
+
+    def wait_for_connection(self):
+        """
+        we want a chance to look for disappearing pids 
+        even if we don't get a signal from any clients
+        """
+        while True:
+            try:
+                conn, addr = self.sock.accept()
+                print 'Connected by', addr
+                return conn, addr
+            except socket.timeout:
+                # we just reached the timeout, refresh the queue
+                print 'refreshing queue'
+                self.queue.refresh()
+
+    def run(self):
+        self.open_socket()
+        self.sock.listen(1)
+        try:
+            while True:
+
+                conn, addr = self.wait_for_connection()
+                data = conn.recv(MAX_BUFFSIZE)
+
+                print 'data:',data
+                if not data: 
+                    break
+
+                try:
+                    message =json.loads(data)
+                    print 'got JSON request:',message
+                except:
+                    ret = {"error":"could not e JSON request: '%s'" % data}
+                    ret = json.dumps(ret)
+                    conn.send(ret)
+                    break
+
+                self.queue.process_message(message)
+                response = self.queue.get_response()
+
+                try:
+                    json_response = json.dumps(response)
+                except:
+                    err = {"error":"server error creating JSON response from '%s'" % ret}
+                    json_response = json.dumps(err)
+
+                print 'response:',json_response
+                conn.send(json_response)
+
+                conn.close()
+                conn=None
+
+        except KeyboardInterrupt:
+            pass
+        finally:
+            print 'shutdown'
+            self.sock.shutdown(socket.SHUT_RDWR)
+            print 'close'
+            self.sock.close()
 
 
 
@@ -115,6 +177,7 @@ class Job(dict):
             self['reason'] = "'pid' field not in message"
         else:
             self['status'] = 'wait'
+            self['reason'] = ''
 
 
     def match(self, cluster):
@@ -158,12 +221,7 @@ class Job(dict):
 
         reqs = self['require']
 
-        N = reqs.get('N', None)
-        if N is None:
-            reason = "field 'N' not in message"
-            return pmatch, match, hosts, reason
-
-
+        N = reqs.get('N', 1)
         Np=N
 
         for h in cluster.nodes:
@@ -218,11 +276,7 @@ class Job(dict):
 
         reqs = self['require']
 
-        N = reqs.get('N', None)
-        if N is None:
-            reason = "field 'N' not in message"
-            return pmatch, match, hosts, reason
-
+        N = reqs.get('N', 1)
         Np=N
 
         for h in cluster.nodes:
@@ -276,7 +330,7 @@ class Job(dict):
 
         h = reqs.get('host',None)
         if h is None:
-            reason = "'host' field not in message"
+            reason = "'host' field not in requirements"
             return pmatch, match, hosts, reason
 
         # make sure the node name exists
@@ -285,10 +339,10 @@ class Job(dict):
             return pmatch, match, hosts, reason
 
         nd = cluster.nodes[h]
-        N= reqs['N']
+        N = reqs.get('N', 1)
         
 
-        if (nd.ncores>=N):
+        if nd.ncores >= N:
             pmatch=True
 
         nfree = nd.ncores-nd.used
@@ -331,13 +385,13 @@ class JobQueue:
 
     def _process_command(self, message):
         command = message['command']
-        if command[0:3] == 'sub':
+        if command in ['sub','submit']:
             self._process_submit_request(message)
-        elif command == 'ls' or command == 'list':
+        elif command in ['ls','list']:
             self._process_listing_request(message)
-        elif command[0:4] == 'stat':
+        elif command in ['stat','status']:
             self._process_status_request(message)
-        elif command == 'rm' or command == 'remove':
+        elif command in ['rm','remove']:
             self._process_remove_request(message)
         elif command == 'notify':
             self._process_notification(message)
@@ -355,8 +409,13 @@ class JobQueue:
             self.response['error'] = "submit requests must contain the 'require' field"
             return
 
-        newjob = Job(pid)
-        self.queue.append(newjob)
+        newjob = Job(message)
+        newjob.match(self.cluster)
+        if newjob['status'] == 'nevermatch':
+            self.response['error'] = "job requirements do not match this cluster"
+            self.response['reason'] = newjob['reason']
+        else:
+            self.queue.append(newjob)
 
         self.response['response'] = 'wait'
 
@@ -429,57 +488,11 @@ def main():
         parser.print_help()
         sys.exit(45)
 
-    cluster_file = args[1]
-    queue = JobQueue(cluster_file)
+    cluster_file = args[0]
+    srv = Server(cluster_file)
+    
+    srv.run()
 
-    try:
-        while True:
-            while True:
-                try:
-                    conn, addr = sock.accept()
-                    print 'Connected by', addr
-                    break
-                except socket.timeout:
-                    # we just reached the timeout, refresh the queue
-                    print 'refreshing queue'
-                    queue.refresh()
-
-            data=''
-            tdata='junk'
-            while tdata:
-                tdata = conn.recv(MAX_BUFFSIZE)
-                data += tdata
-
-            print 'data:',data
-            if not data: 
-                break
-            try:
-                message =json.loads(data)
-                print 'got JSON request:',message
-            except:
-                ret = {"error":"could not e JSON request: '%s'" % data}
-                ret = json.dumps(ret)
-                conn.send(ret)
-                break
-
-            queue.process_message(message)
-            response = queue.get_response()
-
-            try:
-                json_response = json.dumps(response)
-            except:
-                err = {"error":"server error creating JSON response from '%s'" % ret}
-                json_response = json.dumps(err)
-
-            print 'response:',json_response
-            conn.send(json_response)
-
-            conn.close()
-
-    except KeyboardInterrupt:
-        pass
-    finally:
-        sock.close()
 
 if __name__=="__main__":
     main()

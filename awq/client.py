@@ -55,33 +55,30 @@ parser.add_option("-c", "--min-cores", dest="min_cores",
                   help="min cores when asking bynode", default=1)
 
 parser.add_option("-d", "--node", dest="node",
-                  help="node when asking exactnode", default="")
-
+                  help="node when asking byhost", default="")
 
 
 def TalkToServer (dictout):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((HOST, PORT))
-    sock.send(json.dumps(dictout))
 
-    # read in chunks
-    data=''
-    tdata='junk'
-    while tdata:
-        tdata = sock.recv(MAX_BUFFSIZE)
-        data += tdata
-    rdict = json.loads(data)
-    sock.close()
+    try:
+        sock.send(json.dumps(dictout))
 
-    if "error" in rdict:
-        print "Error reported by server."
-        print rdict['error']
-        sys.exit(1)
+        data = sock.recv(MAX_BUFFSIZE)
 
-    if ("response"  not in rdict):
-        print "Internal error. Expected a response and got screwed."
-        sys.exit(1)
+        rdict = json.loads(data)
+        sock.close()
 
+        if "error" in rdict:
+            raise RuntimeError("Error reported by server: %s" % rdict['error'])
+
+        if ("response"  not in rdict):
+            raise RuntimeError("Internal error. Expected a response and got screwed.")
+
+    finally:
+        print 'closing client socket'
+        sock.close()
 
     return rdict
 
@@ -104,7 +101,7 @@ def main():
         parser.print_help()
         sys.exit(0)
 
-    commands = ['submit', 'ls', 'rm']
+    commands = ['sub','submit', 'ls', 'list','rm','remove']
     command=args.pop(0)
     if (command not in commands):
         print "Bad command '%s', must be one of: %s" % (command,','.join(commands))
@@ -114,7 +111,7 @@ def main():
     dict['command']=command
     req={}
 
-    if command == 'submit':
+    if command in ['sub','submit']:
         if (not commandline):
             print "Need to supply command line."
             exit(1)
@@ -137,7 +134,7 @@ def main():
         dict['require']=req
 
     dict['pid'] = os.getpid()
-    dict['hostname'] = socket.gethostname()
+    dict['socket_hostname'] = socket.gethostname()
 
 
 
@@ -149,17 +146,17 @@ def main():
     print "Server says :", rdict["response"]
 
 
-    if (command=='ls'):
+    if (command in ['ls','list']):
         for job in rdict['response']:
             print job
         sys.exit(0)
 
-    if (command=='rm'):
+    if (command in ['rm','remove']):
         print "Done."
         sys.exit(1)
 
 
-    if (not command=='submit'):
+    if (not command in ['sub','submit']):
         print " We really shouldn't be here."
         sys.exit(1)
 

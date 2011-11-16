@@ -38,8 +38,6 @@ print '-----------'
 req={}
 req['submit_mode']='bynode'
 req['in_group']=['gen4']
-req['not_in_group']=[]
-req['min_cores']=0
 req['N']=6
 j3 = server.Job ({'require':req,'pid':2})
 j3.match(cluster)

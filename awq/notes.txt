@@ -8,3 +8,8 @@ And make the matching be
     byhost: require exact hostname match
 
 
+When matching by host and by node, how many cores will we use by *default*?
+All or one?  By defaulting to all we we don't have to know ahead of time how
+many cores the nodes have.  Currently defaulting to None.
+
+
