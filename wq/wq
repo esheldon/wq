@@ -69,6 +69,7 @@ class Lister(dict):
         self.user = options.user
         if self.user is not None:
             self.user = self.user.split(',')
+
     def execute(self):
         message={}
         message['command'] = 'ls'
@@ -78,13 +79,16 @@ class Lister(dict):
         if self.user is not None:
             print 'Job listing for user:',','.join(self.user)
         else:
-            print 'job listing: make this nicer'
+            print 'job listing: '
         for r in resp['response']:
-            if self.user is None:
-                print r
-            else:
-                if r['user'] in self.user:
-                    print r
+            if (self.user is None) or (r['user'] in self.user):
+                #print r
+                print "%(pid)s %(user)s %(status)s %(commandline)10s     "%r,
+                if (r['status']=='run'):
+                    print 'Nc=',len(r['hosts'])
+                else:
+                    print 'Reason = ',r['reason']
+                
 
 class Stats(dict):
     """
@@ -246,23 +250,33 @@ class Submitter(dict):
         message['pid'] = os.getpid()
         message['user'] = os.environ['USER']
         message['require'] = self['require']
-
+        message['commandline'] = self['command']
         self.print_job_info()
 
         sres = send_message(message)
 
         if sres['response'] == 'wait':
-            import time
             # wait until we can go
+            print "----------------- WAITING"
             signal.signal(signal.SIGUSR1, self.receive_signal)
             signal.pause()
             message['command']='gethosts'
             sres=send_message(message)
 
         ## time to run
+
+        ## if hostfile specified need to create one
+
     
         ### Now execute
         hosts=sres['hosts']
+        if 'hostfile' in self['require']:
+            f=open(self['require']['hostfile'],'w')
+            for h in hosts:
+                f.write(h+'\n')
+            f.close()
+
+
         target=hosts[0]
         pwd =os.getcwd()
         command=self['commandline']
