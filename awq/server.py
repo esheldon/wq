@@ -612,7 +612,8 @@ class JobQueue:
 
     def _remove(self, pid):
         for i,job in enumerate(self.queue):
-            if j['pid'] == pid:
+            if job['pid'] == pid:
+                job.unmatch()
                 del self.queue[i]
                 self.response['response'] = 'OK'
                 break
