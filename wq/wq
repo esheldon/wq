@@ -250,7 +250,7 @@ class Submitter(dict):
         message['pid'] = os.getpid()
         message['user'] = os.environ['USER']
         message['require'] = self['require']
-        message['commandline'] = self['command']
+        message['commandline'] = self['commandline']
         self.print_job_info()
 
         sres = send_message(message)
