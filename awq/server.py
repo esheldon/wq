@@ -187,7 +187,8 @@ class Job(dict):
         if self['status'] != 'wait':
             return
 
-        submit_mode=self['require']['submit_mode']
+        # default to bycore
+        submit_mode = self['require'].get('mode','bycore')
 
         # can also add reasons from the match methods
         # later
@@ -218,6 +219,16 @@ class Job(dict):
             self['reason']=reason
 
 
+    def _get_req_list(self, reqs, key):
+        """
+        Can either send 'v1,v2,v3' as a string or an actual list [v1,v2,v3]
+        Will be converted to a list
+        """
+        val = reqs.get(key,[])
+        if not isinstance(val, list):
+            val = val.split(',')
+        return val
+
     def _match_bycore(self, cluster):
 
         pmatch=False
@@ -234,7 +245,7 @@ class Job(dict):
             nd = cluster.nodes[h]
 
             ## is this node actually what we want
-            ing = reqs.get('in_group',[])
+            ing = self._get_req_list(reqs, 'group')
             if len(ing) > 0: ##any group in any group
                 ok=False
                 for g in ing:
@@ -244,7 +255,7 @@ class Job(dict):
                 if (not ok):
                     continue ### not in the group
                     
-            ing = reqs.get('not_in_group',[])
+            ing = self._get_req_list(reqs, 'notgroup')
             if len(ing) > 0: ##any group in any group
                 ok=True
                 for g in ing:
@@ -296,7 +307,7 @@ class Job(dict):
             nd = cluster.nodes[h]
 
             ## is this node actually what we want
-            ing = reqs.get('in_group',[])
+            ing = self._get_req_list(reqs, 'group')
             if len(ing) > 0: ##any group in any group
                 ok=False
                 for g in ing:
@@ -306,7 +317,7 @@ class Job(dict):
                 if (not ok):
                     continue ### not in the group
                     
-            ing = reqs.get('not_in_group',[])
+            ing = self._get_req_list(reqs, 'notgroup')
             if len(ing) > 0: ##any group in any group
                 ok=True
                 for g in ing:
@@ -362,7 +373,7 @@ class Job(dict):
                 continue
 
             ## is this node actually what we want
-            ing = reqs.get('in_group',[])
+            ing = self._get_req_list(reqs, 'group')
             if len(ing) > 0: ##any group in any group
                 ok=False
                 for g in ing:
@@ -372,7 +383,7 @@ class Job(dict):
                 if (not ok):
                     continue ### not in the group
 
-            ing = reqs.get('not_in_group',[])
+            ing = self._get_req_list(reqs, 'notgroup')
             if len(ing) > 0: ##any group in any group
                 ok=True
                 for g in ing:
@@ -533,13 +544,13 @@ class JobQueue:
 
     def _process_command(self, message):
         command = message['command']
-        if command in ['sub','submit']:
+        if command in ['sub']:
             self._process_submit_request(message)
-        elif command in ['ls','list']:
+        elif command in ['ls']:
             self._process_listing_request(message)
-        elif command in ['stat','status']:
+        elif command in ['stat']:
             self._process_status_request(message)
-        elif command in ['rm','remove']:
+        elif command in ['rm']:
             self._process_remove_request(message)
         elif command == 'notify':
             self._process_notification(message)

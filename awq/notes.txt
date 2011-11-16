@@ -24,7 +24,7 @@ Compulsory arguments denoted by (*)
   Nodes should not be in not_in_group if specified
   We allocate a total of N nodes, default = 1
   Each node must have at least min_cores total cores.
-  We never match a partially loaded nodes, we always demans full nodes
+  We never match a partially loaded nodes, we always demand full nodes
 
 * byhost: require exact hostname match 
   Options: host (*) , N
@@ -32,7 +32,7 @@ Compulsory arguments denoted by (*)
 
 * bygrp: requires a full (single) group of nodes
   Options: group (*)
-  We demans the entire group group. 
+  We demand the entire group group. 
   All nodes must be completelly free on that group for a match
 
 

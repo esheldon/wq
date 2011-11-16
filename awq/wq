@@ -1,0 +1,193 @@
+#!/usr/bin/env python
+"""
+    %prog [options] command [command options]
+
+Basic command modes are the following.  There are additional
+options for each command
+
+    sub:        Submit a job.
+    ls:         Print the job listing
+    stat:       Get the status of the cluster/queue.
+    rm:         Remove a job.
+    notify:     Send notification about a job, e.g. 'done'
+    refresh:    Force a refresh of the job queue.
+
+To get help on each command, use -h, e.g.
+    %prog submit -h
+"""
+
+import socket
+import sys
+import json
+import os
+import signal 
+
+from optparse import OptionParser
+
+# need to move this into server.py and require a real installation
+_COMMANDS = ['sub','ls','stat','rm','notify','refresh']
+
+class Command(dict):
+    """
+    the base class
+    """
+    def __init__(self, args):
+        self._process_args(args)
+
+    def _process_args(self, args):
+        pass
+
+    def run(self):
+        pass
+
+class Submitter(dict):
+    """
+    usage: wq sub [options] [args]
+
+    two basic modes:
+        1) 
+            wq sub -r require job_file
+        require will over-ride requirements in the job file.
+
+        2)
+            wq sub -r require -c command
+        The command is just a string.  You probably want to
+        double quote it.
+    """
+    def __init__(self, args):
+        #Command.__init__(self, args)
+        self._process_args(args)
+
+    def _process_args(self, args):
+        parser=OptionParser(Submitter.__doc__)
+        parser.add_option("-r", "--require", default=None, help="optional requirements for job")
+        parser.add_option("-c", "--command", default=None, help="The command to run as a string")
+
+        options, args = parser.parse_args(args)
+
+        self['require_arg'] = options.require
+        if len(args) > 0:
+            # a job file was sent
+            job_file = args[0]
+            self._process_job_file(job_file)
+        else:
+            if options.command is None:
+                parser.print_help()
+                sys.exit(1)
+            command = options.command
+            self._process_command_string(command)
+
+    def _process_job_file(self, fname):
+        import yaml
+
+        self['require'] = yaml.load(open(fname))
+        if 'command' not in self['require']:
+            raise ValueError("no command found in job file")
+        self['command'] = self['require']['command']
+
+        # don't need this in the requirements
+        del self['require']['command']
+        
+
+    def _process_command_string(self, command):
+        """
+        The command is determined by an argument.  Requirements are only
+        specified by -r/--require now
+        """
+        require = self._process_require_arg()
+
+        self['require'] = require
+        self['command'] = command
+
+    def _process_require_arg(self):
+        req={}
+        if self['require_arg'] is None:
+            return req
+        reqlist = self['require_arg'].split(':')
+        for r in reqlist:
+            rs = r.split('=')
+            if len(rs) == 2:
+                key = rs[0]
+                try:
+                    val = eval(rs[1])
+                except:
+                    val = rs[1]
+
+                req[key] = val
+            else:
+                raise ValueError("mis-formatted requirements arg: %s'" % r)
+
+        return req
+
+    def print_job_info(self):
+        print 'command:',self['command']
+        for k in self['require']:
+            print '%s: %s' % (k,self['require'][k])
+
+    def send_request(self):
+        req = {}
+        req['pid'] = os.getpid()
+        req['user'] = os.environ['USER']
+        req['require'] = self['require']
+
+        self.print_job_info()
+
+def send_request(req):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((HOST, PORT))
+
+    try:
+        sock.send(json.dumps(req))
+
+        data = sock.recv(MAX_BUFFSIZE)
+
+        rdict = json.loads(data)
+        sock.close()
+
+        if "error" in rdict:
+            raise RuntimeError("Error reported by server: %s" % rdict['error'])
+
+        if ("response"  not in rdict):
+            raise RuntimeError("Internal error. Expected a response and got screwed.")
+
+    finally:
+        print 'closing client socket'
+        sock.close()
+
+    return rdict
+
+
+def get_command_obj(args):
+    if args[0] == 'sub':
+        return Submitter(args[1:])
+    elif args[0] == 'ls':
+        return Lister(args[1:])
+    elif args[0] == 'stat':
+        return Stats(args[1:])
+    elif args[0] == 'rm':
+        return Remover(args[1:])
+    elif args[0] == 'notify':
+        return Notifier(args[1:])
+    elif args[0] == 'refresh':
+        return Refresher(args[1:])
+    else:
+        return None
+
+def main():
+
+    parser=OptionParser(__doc__)
+    args = sys.argv[1:]
+    if args[0] == '-h':
+        parser.print_help()
+        sys.exit(1)
+
+    cmd = args[0]
+    cmd_obj = get_command_obj(args)
+    if cmd_obj is None:
+        parser.print_help()
+        sys.exit(1)
+
+    cmd_obj.send_request()
+
+if __name__=="__main__":
+    main()
