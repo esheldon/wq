@@ -228,9 +228,15 @@ class Submitter(dict):
         return req
 
     def print_job_info(self):
+        print '------------'
+        print 'Job info:\n'
         print 'command:',self['command']
         for k in self['require']:
             print '%s: %s' % (k,self['require'][k])
+        print '------------'
+
+    def receive_signal(self,a,b):
+        pass
 
     def execute(self):
         message = {}
@@ -246,7 +252,7 @@ class Submitter(dict):
         if sres['response'] == 'wait':
             import time
             # wait until we can go
-            signal.signal(signal.SIGUSR1, receive_signal)
+            signal.signal(signal.SIGUSR1, self.receive_signal)
             signal.pause()
             message['command']='gethosts'
             sres=send_message(message)
@@ -322,15 +328,10 @@ def main():
 
     parser=OptionParser(__doc__)
     args = sys.argv[1:]
-<<<<<<< HEAD
-    if len(args)==0:
-        args=['-h']
-=======
     if len(args) == 0:
         parser.print_help()
         sys.exit(1)
 
->>>>>>> 195f9dc1b129cdea4ce1b3318f50c6c8ea2bfd69
     if args[0] == '-h':
         parser.print_help()
         sys.exit(1)

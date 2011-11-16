@@ -274,7 +274,7 @@ class Job(dict):
                     continue ### not in the group
 
             print "nd.nc=",nd.ncores
-            if (nd.ncores>Np):
+            if (nd.ncores>=Np):
                 pmatch=True
             else:
                 Np-=nd.ncores
@@ -338,7 +338,7 @@ class Job(dict):
                 if (not ok):
                     continue ### not in the group
 
-            if (nd.ncores>Np):
+            if (nd.ncores>=Np):
                 pmatch=True
             else:
                 pass
@@ -597,7 +597,7 @@ class JobQueue:
             # we do a refresh
             self.queue.append(newjob)
             self.response['response'] = newjob['status']
-            if (response['response']=='run'):
+            if (self.response['response']=='run'):
                     self.response['hosts']=newjob['hosts']
 
     def _process_gethosts(self, message):
@@ -606,15 +606,15 @@ class JobQueue:
             self.response['error'] = "submit requests must contain the 'pid' field"
             return
 
-        if pid not in self.queue:
-            self.response['error'] = "we don't have this pid"
-            return
+        for job in self.queue:
+            if job['pid']==pid:
+                self.response['hosts']=job['hosts']
+                self.response['response']='ok'
+                return
 
-        if 'hosts' not in self.queue[pid]:
-            self.response['error'] = "pid has no hosts yet"
-            return
+        self.response['error'] = "we don't have this pid"
+        return
 
-        self.response['hosts']=self.queue[pid]['hosts']
         
 
     def _process_listing_request(self, message):
