@@ -173,7 +173,6 @@ class Submitter(dict):
         options, args = parser.parse_args(args)
 
         self['require_arg'] = options.require
-        self['commandline'] = options.command
         if len(args) > 0:
             # a job file was sent
             job_file = args[0]
@@ -263,10 +262,10 @@ class Submitter(dict):
         hosts=sres['hosts']
         target=hosts[0]
         pwd =os.getcwd()
-        commandline=self['commandline']
+        command=self['command']
         ## here we execute
         print "----------------- EXECUTING JOB"
-        os.system ('ssh -t '+target+'  "cd '+pwd+'; '+commandline+' "')
+        os.system ('ssh -t '+target+'  "cd '+pwd+'; '+command+' "')
         
         print "----------------- DONE"
         ### now we notify done.
