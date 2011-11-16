@@ -1,37 +1,115 @@
-# Echo server program ipv4
+"""
+    %prog [options] cluster_description_file
+
+The description file is 
+
+    hostname ncores mem labels
+
+The labels are optional.
+"""
+
 import socket
 import json
 import copy
+import sys
+import os
 
 HOST = ''      # Symbolic name meaning all available interfaces
 PORT = 51093   # Arbitrary non-privileged port
 MAX_BUFFSIZE = 4096
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.bind((HOST, PORT))
 # only listen for this many seconds, then refresh the queue
-sock.settimeout(30.0)
-sock.listen(1)
+SOCK_TIMEOUT = 30.0
 
-# this can be configurable
-_cluster_description_file='./bnl_desc.txt'
+from optparse import OptionParser
+parser=OptionParser(__doc__)
 
+class Server:
+    def __init__(self, cluster_file):
+        self.cluster_file = cluster_file
+        self.queue = JobQueue(cluster_file)
 
-class Request(dict):
-    def __init__(self, request):
-        self.request_string = request
-    def json_decode(self):
-        self.request = json.loads(self.request_string)
+    def open_socket(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.bind((HOST, PORT))
+        self.sock.settimeout(SOCK_TIMEOUT)
+
+    def wait_for_connection(self):
+        """
+        we want a chance to look for disappearing pids 
+        even if we don't get a signal from any clients
+        """
+        while True:
+            try:
+                conn, addr = self.sock.accept()
+                print 'Connected by', addr
+                return conn, addr
+            except socket.timeout:
+                # we just reached the timeout, refresh the queue
+                print 'refreshing queue'
+                self.queue.refresh()
+
+    def run(self):
+        self.open_socket()
+        self.sock.listen(1)
+        try:
+            while True:
+
+                conn, addr = self.wait_for_connection()
+                data = conn.recv(MAX_BUFFSIZE)
+
+                print 'data:',data
+                if not data: 
+                    break
+
+                try:
+                    message =json.loads(data)
+                    print 'got JSON request:',message
+                except:
+                    ret = {"error":"could not e JSON request: '%s'" % data}
+                    ret = json.dumps(ret)
+                    conn.send(ret)
+                    break
+
+                self.queue.process_message(message)
+                response = self.queue.get_response()
+
+                try:
+                    json_response = json.dumps(response)
+                except:
+                    err = {"error":"server error creating JSON response from '%s'" % ret}
+                    json_response = json.dumps(err)
+
+                print 'response:',json_response
+                conn.send(json_response)
+
+                conn.close()
+                conn=None
+
+        except KeyboardInterrupt:
+            pass
+        finally:
+            print 'shutdown'
+            self.sock.shutdown(socket.SHUT_RDWR)
+            print 'close'
+            self.sock.close()
 
 
 
 class Node:
     def __init__ (self, line):
-        self.host, self.ncores, self.mem, self.grps = line.split()
-        self.ncores=int(self.ncores)
-        self.mem=float(self.mem)
-        self.grps=self.grps.split(',')
-        self.used=0
+        ls = line.split()
+        host, ncores, mem = ls[0:3]
+
+        if len(ls) > 3:
+            self.grps = ls[3].split(',')
+        else:
+            self.grps = []
+
+        self.host   = host
+        self.ncores = int(ncores)
+        self.mem    = float(mem)
+        self.used   = 0
 
     def Reserve(self):
         self.used+=1
@@ -51,7 +129,8 @@ class Cluster:
     def __init__(self,filename):
         self.filename=filename
         self.nodes={}
-        for line in open(filename).readlines():
+
+        for line in open(filename):
             nd = Node(line);
             self.nodes[nd.host] = nd
     
@@ -68,7 +147,7 @@ class Cluster:
         tot=0
         used=0
         use=[]
-        for h in self.nodes.keys():
+        for h in self.nodes:
             tot+=self.nodes[h].ncores
             used+=self.nodes[h].used
             if (self.nodes[h].used>0):
@@ -82,176 +161,235 @@ class Cluster:
 
 
 
-
 class Job(dict):
-    #cluster=None
 
-    def __init__(self, message, cluster):
-        #print self.cluster
-        #if cluster==None:
-        #    print "Loading cluster"
-        #    cluster = Cluster(_cluster_description_file)
-
+    def __init__(self, message):
         # make sure pid,require are in message
         # and copy them into self
-        
-        self.cluster=cluster
 
         for k in message:
             self[k] = message[k]
-        self['status'] = 'wait'
 
-    def match(self):
-        if (self['status']!='wait'):
+        if 'require' not in self:
+            self['status'] = 'nevermatch'
+            self['reason'] = "'require' field not in message"
+        elif 'pid' not in self:
+            self['status'] = 'nevermatch'
+            self['reason'] = "'pid' field not in message"
+        else:
+            self['status'] = 'wait'
+            self['reason'] = ''
+
+
+    def match(self, cluster):
+        if self['status'] == 'nevermatch':
+            return
+        if self['status'] != 'wait':
             return
 
-        reqs=self['require']
-        submit_mode=reqs['submit_mode']
+        submit_mode=self['require']['submit_mode']
 
-        pmatch=False
-        match=False
-        hosts=[] # actually matched hosts
+        # can also add reasons from the match methods
+        # later
 
         if (submit_mode=='bycore'):
-            N=reqs['N']
-            Np=N
-            for h in self.cluster.nodes.keys():
-                nd = self.cluster.nodes[h]
-
-                ## is this node actually what we want
-                ing=reqs['in_group']
-                if (len(ing)>0): ##any group in any group
-                    ok=False
-                    for g in ing:
-                        if g in nd.grps:
-                            ok=True
-                            break
-                    if (not ok):
-                        continue ### not in the group
-                        
-                ing=reqs['not_in_group']
-                if (len(ing)>0): ##any group in any group
-                    ok=True
-                    for g in ing:
-                        if g in nd.grps:
-                            ok=False
-                            break
-                    if (not ok):
-                        continue ### not in the group
-
-                if (nd.ncores>Np):
-                    pmatch=True
-                else:
-                    Np-=nd.ncores
-
-                nfree= nd.ncores-nd.used
-                if (nfree>=N):
-                    for x in range(N):
-                        hosts.append(h)
-                    N=0
-                    match=True
-                    break #we are done
-                else:
-                    N-=nfree
-                    for x in range(nfree):
-                        hosts.append(h)
-
+            pmatch, match, hosts, reason = self._match_bycore(cluster)
         elif (submit_mode=='bynode'):
-            N=reqs['N']
-            Np=N
-            for h in self.cluster.nodes.keys():
-                nd = self.cluster.nodes[h]
-                if (nd.ncores<reqs['min_cores']):
-                    continue
-                ## is this node actually what we want
-                ing=reqs['in_group']
-                if (len(ing)>0): ##any group in any group
-                    ok=False
-                    for g in ing:
-                        if g in nd.grps:
-                            ok=True
-                            break
-                    if (not ok):
-                        continue ### not in the group
-
-                        
-                ing=reqs['not_in_group']
-                if (len(ing)>0): ##any group in any group
-                    ok=True
-                    for g in ing:
-                        if g in nd.grps:
-                            ok=False
-                            break
-                    if (not ok):
-                        continue ### not in the group
-                
-                Np-=1
-                if (Np==0):
-                    pmatch=True
-                if (nd.used==0):
-                    N-=1
-                    for x in range(nd.ncores):
-                        hosts.append(h)
-                    if (N==0):
-                        match=True
-                        break
-
-
-
-        elif (submit_mode=='exactnode'):
-            h = reqs['node']
-            nd = self.cluster.nodes[h]
-            N= reqs['N']
-            
-            if (nd.ncores>=N):
-                pmatch=True
-
-            nfree = nd.ncores-nd.used
-            if (nfree>=N):
-                for x in range(N):
-                    hosts.append(h)
-                N=0
-                match=True
-
+            pmatch, match, hosts, reason = self._match_bynode(cluster)
+        elif (submit_mode=='byhost'):
+            pmatch, match, hosts,reason = self._match_byhost(cluster)
         elif (submit_mode=='bygrp'):
-            g = reqs['grp']
-            ing=reqs['in_group']
-            if (len(ing)!=1):
-                pmatch=False
-            else:
-                ing=ing[0]
-                for h in self.cluster.nodes.keys():
-                    nd = self.cluster.nodes[h]
-                    if ing in nd.grps:
-                        pmatch=True
-                        match=True
-                        if (nd.use>0):
-                            match=False
-                            break
-                        else:
-                            for x in range(nd.ncores):
-                                hosts.append(h)
-
+            pmatch, match, hosts,reason = self._match_bygrp(cluster)
         else:
             pmatch=False ## unknown request never mathces
-            pass
-                        
-        if (pmatch):
+            reason="bad submit_mode '%s'" % submit_mode
+
+        if pmatch:
             if match:
                 self['hosts']=hosts
-                self.cluster.Reserve(hosts)
+                cluster.Reserve(hosts)
                 self['status']='run'
             else:
                  self['status']='wait'
         else:
             self['status']='nevermatch'
-                    
+            self['reason']=reason
 
-    def unmatch(self):
-        if (self['status']=='run'):
-            self.cluster.Unreserve(self['hosts'])
-            self['status'] = 'done'
+    def _match_bycore(self, cluster):
+
+        pmatch=False
+        match=False
+        hosts=[] # actually matched hosts
+        reason=''
+
+        reqs = self['require']
+
+        N = reqs.get('N', 1)
+        Np=N
+
+        for h in cluster.nodes:
+            nd = cluster.nodes[h]
+
+            ## is this node actually what we want
+            ing = reqs.get('in_group',[])
+            if len(ing) > 0: ##any group in any group
+                ok=False
+                for g in ing:
+                    if g in nd.grps:
+                        ok=True
+                        break
+                if (not ok):
+                    continue ### not in the group
+                    
+            ing = reqs.get('not_in_group',[])
+            if len(ing) > 0: ##any group in any group
+                ok=True
+                for g in ing:
+                    if g in nd.grps:
+                        ok=False
+                        break
+                if (not ok):
+                    continue ### not in the group
+
+            if (nd.ncores>Np):
+                pmatch=True
+            else:
+                Np-=nd.ncores
+
+            nfree= nd.ncores-nd.used
+            if (nfree>=N):
+                for x in xrange(N):
+                    hosts.append(h)
+                N=0
+                match=True
+                break
+            else:
+                N-=nfree
+                for x in xrange(nfree):
+                    hosts.append(h)
+
+        return pmatch, match, hosts, reason
+
+
         
+
+    def _match_bygrp(self, cluster):
+
+        pmatch=False
+        match=False
+        hosts=[] # actually matched hosts
+        reason=''
+
+        g = reqs['grp']
+        ing=reqs['in_group']
+        if (len(ing)!=1):
+            pmatch=False
+        else:
+            ing=ing[0]
+            for h in self.cluster.nodes.keys():
+                nd = self.cluster.nodes[h]
+                if ing in nd.grps:
+                    pmatch=True
+                    match=True
+                    if (nd.use>0):
+                        match=False ## we actually demand the entire group
+                        break
+                    else:
+                        for x in range(nd.ncores):
+                            hosts.append(h)
+        return pmatch, match, hosts, reason
+
+
+    def _match_bynode(self, cluster):
+        pmatch=False
+        match=False
+        hosts=[] # actually matched hosts
+        reason=''
+
+        reqs = self['require']
+
+        N = reqs.get('N', 1)
+        Np=N
+
+        for h in cluster.nodes:
+            nd = cluster.nodes[h]
+            min_cores = reqs.get('min_cores',0)
+            if nd.ncores < min_cores:
+                continue
+
+            ## is this node actually what we want
+            ing = reqs.get('in_group',[])
+            if len(ing) > 0: ##any group in any group
+                ok=False
+                for g in ing:
+                    if g in nd.grps:
+                        ok=True
+                        break
+                if (not ok):
+                    continue ### not in the group
+
+            ing = reqs.get('not_in_group',[])
+            if len(ing) > 0: ##any group in any group
+                ok=True
+                for g in ing:
+                    if g in nd.grps:
+                        ok=False
+                        break
+                if (not ok):
+                    continue ### not in the group
+            
+            Np-=1
+            if (Np==0):
+                pmatch=True
+            if (nd.used==0):
+                N-=1
+                for x in xrange(nd.ncores):
+                    hosts.append(h)
+                if (N==0):
+                    match=True
+                    break
+
+        return pmatch, match, hosts, reason
+
+    def _match_byhost(self, cluster):
+
+        pmatch=False
+        match=False
+        hosts=[] # actually matched hosts
+        reason=''
+
+        reqs = self['require']
+
+        h = reqs.get('host',None)
+        if h is None:
+            reason = "'host' field not in requirements"
+            return pmatch, match, hosts, reason
+
+        # make sure the node name exists
+        if h not in cluster.nodes:
+            reason = "host '%s' does not exist" % h
+            return pmatch, match, hosts, reason
+
+        nd = cluster.nodes[h]
+        N = reqs.get('N', 1)
+        
+
+        if nd.ncores >= N:
+            pmatch=True
+
+        nfree = nd.ncores-nd.used
+        if (nfree>=N):
+            for x in xrange(N):
+                hosts.append(h)
+            N=0
+            match=True
+
+        return pmatch, match, hosts, reason
+
+    def unmatch(self, cluster):
+        if self['status'] == 'run':
+            cluster.Unreserve(self['hosts'])
+            self['status'] = 'done'
 
 
     def asdict(self):
@@ -261,7 +399,9 @@ class Job(dict):
         return d
 
 class JobQueue:
-    def __init__(self):
+    def __init__(self, cluster_file):
+        print "Loading cluster"
+        self.cluster = Cluster(cluster_file)
         self.queue = []
 
     def process_message(self, message):
@@ -275,16 +415,51 @@ class JobQueue:
         else:
             self._process_command(message)
 
+    def refresh(self):
+        """
+        refresh the job list
+
+        This is the key, as it tells the jobs when they can run.
+
+            - Remove jobs where the pid no longer is valid.
+        Otherwise run match(cluster) and
+            - are the requirements met and we can run?
+            - note we should have no 'nevermatch' status here
+
+        """
+
+        for i,job in enumerate(self.queue):
+            if job['status'] == 'run':
+                # job was told to run.
+                # see if the pid is still running, if not remove the job
+                if not self._pid_exists(job['pid']):
+                    print 'removing job %s, pid no longer valid'
+                    del self.queue[i]
+            else:
+                # we if we can now run the job
+                job.match(self.cluster)
+                if job['status'] == 'run':
+                    # *now* send a signal to start it
+                    self._signal_start(job['pid'])
+
+    def get_response(self):
+        return self.response
+
+
     def _process_command(self, message):
         command = message['command']
-        if command[0:3] == 'sub':
+        if command in ['sub','submit']:
             self._process_submit_request(message)
-        elif command == 'ls' or command == 'list':
+        elif command in ['ls','list']:
             self._process_listing_request(message)
-        elif command == 'rm' or command == 'remove':
+        elif command in ['stat','status']:
+            self._process_status_request(message)
+        elif command in ['rm','remove']:
             self._process_remove_request(message)
         elif command == 'notify':
             self._process_notification(message)
+        elif command == 'refresh':
+            self.refresh()
         else:
             self.response['error'] = "only support 'sub' and 'list' commands"
 
@@ -299,10 +474,18 @@ class JobQueue:
             self.response['error'] = "submit requests must contain the 'require' field"
             return
 
-        newjob = Job(pid)
-        self.queue.append(newjob)
+        newjob = Job(message)
+        newjob.match(self.cluster)
+        if newjob['status'] == 'nevermatch':
+            self.response['error'] = "job requirements do not match this cluster"
+            self.response['reason'] = newjob['reason']
+        else:
+            # if the status is 'run', the job will immediately
+            # run. Otherwise it will wait and can't run till
+            # we do a refresh
+            self.queue.append(newjob)
+            self.response['response'] = newjob['status']
 
-        self.response['response'] = 'wait'
 
     def _process_listing_request(self, message):
         listing = []
@@ -310,6 +493,9 @@ class JobQueue:
             listing.append(job.asdict())
         
         self.response['response'] = listing
+
+    def _process_status_request(self, message):
+        self.response['response'] = self.cluster.Status()
 
     def _process_remove_request(self, message):
         pid = message.get('pid',None)
@@ -344,75 +530,36 @@ class JobQueue:
                 self.response['response'] = 'OK'
                 break
 
-    def refresh(self):
-        """
-        refresh the job list
+    def _signal_start(self, pid):
+        import signal
+        os.kill(pid, signal.SIGUSR1)
 
-        Loop through the jobs.  Try to match each job against the cluster.  This means 
-        
-            - is the job runnable on the cluster at all
-            - are the requirements met and we can run?
-            - Does the pid associated with the job still exits.  If not, remove
-            the job
-
-        Need to wait for Anze on this
-        """
-        pass
-    def get_response(self):
-        return self.response
+    def _pid_exists(self, pid):        
+        """ Check For the existence of a unix pid. """
+        try:
+            # this doesn't actually kill the job, it does nothing if the pid
+            # exists, if doesn't exist raises OSError
+            os.kill(pid, 0)
+        except OSError:
+            return False
+        else:
+            return True
 
 
+
+    
 def main():
-    Cluster(__cluster_description_file)
-    queue = JobQueue()
 
+    options, args = parser.parse_args(sys.argv[1:])
+    if len(args) < 1:
+        parser.print_help()
+        sys.exit(45)
 
-    try:
-        while 1:
-            while 1:
-                try:
-                    conn, addr = sock.accept()
-                    print 'Connected by', addr
-                    break
-                except socket.timeout:
-                    # we just reached the timeout, refresh the queue
-                    print 'refreshing queue'
-                    queue.refresh()
+    cluster_file = args[0]
+    srv = Server(cluster_file)
+    
+    srv.run()
 
-            while 1:
-                # this is just in case the data are larger than the buffer
-                data = conn.recv(MAX_BUFFSIZE)
-
-                print 'data:',data
-                if not data: 
-                    break
-                try:
-                    message =json.loads(data)
-                    print 'got JSON request:',message
-                except:
-                    ret = {"error":"could not e JSON request: '%s'" % data}
-                    ret = json.dumps(ret)
-                    conn.send(ret)
-                    break
-
-                queue.process_message(message)
-                response = queue.get_response()
-
-                try:
-                    json_response = json.dumps(response)
-                except:
-                    err = {"error":"server error creating JSON response from '%s'" % ret}
-                    json_response = json.dumps(err)
-
-                print 'response:',json_response
-                conn.send(json_response)
-
-            conn.close()
-
-    except KeyboardInterrupt:
-        pass
-    finally:
-        sock.close()
 
 if __name__=="__main__":
     main()
