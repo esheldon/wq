@@ -9,7 +9,6 @@ options for each command
     ls:         Print the job listing
     stat:       Get the status of the cluster/queue.
     rm:         Remove a job.
-    notify:     Send notification about a job, e.g. 'done'
     refresh:    Force a refresh of the job queue.
 
 To get help on each command, use -h, e.g.
@@ -25,26 +24,12 @@ import signal
 from optparse import OptionParser
 
 # need to move this into server.py and require a real installation
-_COMMANDS = ['serve','sub','ls','stat','rm','notify','refresh']
+_COMMANDS = ['serve','sub','ls','stat','rm','refresh']
 
 HOST = ''      # Symbolic name meaning all available interfaces
 PORT = 51093   # Arbitrary non-privileged port
 MAX_BUFFSIZE = 4096
 
-
-
-class Command(dict):
-    """
-    the base class
-    """
-    def __init__(self, args):
-        self._process_args(args)
-
-    def _process_args(self, args):
-        pass
-
-    def run(self):
-        pass
 
 class ServerWrapper:
     """
@@ -60,6 +45,107 @@ class ServerWrapper:
         self.srv = server.Server(args[0])
     def execute(self):
         self.srv.run()
+
+class Lister(dict):
+    """
+    usage: wq ls [options]
+
+    print the jobs in the queue to stdout
+    """
+
+    def __init__(self, args):
+        #Command.__init__(self, args)
+        self._process_args(args)
+
+    def _process_args(self, args):
+        parser=OptionParser(Lister.__doc__)
+        parser.add_option("-u", "--user", default=None, 
+                          help="Only list jobs for the user.  can be a comma separated list")
+
+        options, args = parser.parse_args(args)
+        self.user = options.user
+        if self.user is not None:
+            self.user = self.user.split(',')
+    def execute(self):
+        message={}
+        message['command'] = 'ls'
+
+        resp = send_message(message)
+
+        if self.user is not None:
+            print 'Job listing for user:',','.join(self.user)
+        else:
+            print 'job listing: make this nicer'
+        for r in resp['response']:
+            if self.user is None:
+                print r
+            else:
+                if r['user'] in self.user:
+                    print r
+
+class Stats(dict):
+    """
+    usage: wq stat
+
+    print the status of the queue and compute cluster
+    """
+
+    def __init__(self, args):
+        parser=OptionParser(Stats.__doc__)
+        options, args = parser.parse_args(args)
+
+    def execute(self):
+        message={}
+        message['command'] = 'stat'
+
+        resp = send_message(message)
+
+        print 'cluster status: make this nicer'
+        print resp['response']
+
+class Refresher(dict):
+    """
+    usage: wq refresh
+
+    Request that the server refresh it's job list
+    """
+
+    def __init__(self, args):
+        parser=OptionParser(Refresher.__doc__)
+        options, args = parser.parse_args(args)
+
+    def execute(self):
+        message={}
+        message['command'] = 'refresh'
+
+        resp = send_message(message)
+
+class Remover(dict):
+    """
+    usage: wq rm pid
+
+    Request that the server remove the specified job
+    """
+
+    def __init__(self, args):
+        parser=OptionParser(Remover.__doc__)
+        options, args = parser.parse_args(args)
+        if len(args) < 1:
+            parser.print_help()
+            sys.exit(1)
+
+        self.pid = int(args[0])
+
+    def execute(self):
+        message={}
+        message['command'] = 'rm'
+        message['pid'] = self.pid
+
+        resp = send_message(message)
+
+        print resp
+
+
 
 class Submitter(dict):
     """
@@ -155,17 +241,19 @@ class Submitter(dict):
         self.print_job_info()
 
         sres = send_message(message)
-        if 'error' in sres:
-            print 'Error from server: %s' % sres['reason']
-            sys.exit(1)
 
         if sres['response'] == 'wait':
+            import time
             # wait until we can go
             signal.signal(signal.SIGUSR1, receive_signal)
             signal.pause()
             print 'I would run command here if implemented'
+            time.sleep(10000)
+
         elif sres['response'] == 'run':
+            import time
             print 'I would run command immediately here if implemented'
+            time.sleep(10000)
 
 
 def send_message(message):
@@ -177,17 +265,21 @@ def send_message(message):
 
         data = sock.recv(MAX_BUFFSIZE)
 
+        #print 'data from server:',data
         rdict = json.loads(data)
         sock.close()
 
-        if "error" in rdict:
+        if 'error' in rdict:
             raise RuntimeError("Error reported by server: %s" % rdict['error'])
 
-        if ("response"  not in rdict):
+        if 'response' not in rdict:
             raise RuntimeError("Internal error. Expected a response and got screwed.")
 
+    except RuntimeError as e:
+        sock.close()
+        print e
+        sys.exit(1)
     finally:
-        print 'closing client socket'
         sock.close()
 
     return rdict
@@ -202,8 +294,6 @@ def get_command_obj(args):
         return Stats(args[1:])
     elif args[0] == 'rm':
         return Remover(args[1:])
-    elif args[0] == 'notify':
-        return Notifier(args[1:])
     elif args[0] == 'refresh':
         return Refresher(args[1:])
     elif args[0] == 'serve':
@@ -215,6 +305,10 @@ def main():
 
     parser=OptionParser(__doc__)
     args = sys.argv[1:]
+    if len(args) == 0:
+        parser.print_help()
+        sys.exit(1)
+
     if args[0] == '-h':
         parser.print_help()
         sys.exit(1)
@@ -225,7 +319,10 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    cmd_obj.execute()
+    try:
+        cmd_obj.execute()
+    except KeyboardInterrupt:
+        pass
 
 if __name__=="__main__":
     main()

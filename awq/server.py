@@ -9,7 +9,9 @@ The labels are optional.
 """
 
 import socket
+import signal
 import json
+import time
 import copy
 import sys
 import os
@@ -176,6 +178,9 @@ class Job(dict):
         elif 'pid' not in self:
             self['status'] = 'nevermatch'
             self['reason'] = "'pid' field not in message"
+        elif 'user' not in self:
+            self['status'] = 'nevermatch'
+            self['reason'] = "'user' field not in message"
         else:
             self['status'] = 'wait'
             self['reason'] = ''
@@ -195,8 +200,8 @@ class Job(dict):
 
         if (submit_mode=='bycore'):
             pmatch, match, hosts, reason = self._match_bycore(cluster)
-        if (submit_mode=='bycore1'):
-            pmatch, match, hosts, reason = self._match_bycore(cluster)
+        elif (submit_mode=='bycore1'):
+            pmatch, match, hosts, reason = self._match_bycore1(cluster)
         elif (submit_mode=='bynode'):
             pmatch, match, hosts, reason = self._match_bynode(cluster)
         elif (submit_mode=='byhost'):
@@ -557,6 +562,7 @@ class JobQueue:
             self._process_notification(message)
         elif command == 'refresh':
             self.refresh()
+            self.response['response'] = 'OK'
         else:
             self.response['error'] = "only support 'sub' and 'list' commands"
 
@@ -574,8 +580,7 @@ class JobQueue:
         newjob = Job(message)
         newjob.match(self.cluster)
         if newjob['status'] == 'nevermatch':
-            self.response['error'] = "job requirements do not match this cluster"
-            self.response['reason'] = newjob['reason']
+            self.response['error'] = newjob['reason']
         else:
             # if the status is 'run', the job will immediately
             # run. Otherwise it will wait and can't run till
@@ -622,13 +627,17 @@ class JobQueue:
             return
 
     def _remove(self, pid):
+        found=False
         for i,job in enumerate(self.queue):
             if job['pid'] == pid:
-                self._signal_terminate(self,pid)
-                job.unmatch()
+                self._signal_terminate(pid)
+                job.unmatch(self.cluster)
                 del self.queue[i]
                 self.response['response'] = 'OK'
+                found=True
                 break
+        if not found:
+            self.response['error'] = 'pid %s not found' % pid
 
     def _signal_terminate(self,pid):
         if self._pid_exists(pid):
@@ -636,7 +645,7 @@ class JobQueue:
                 return
             else:
                 os.kill(pid,signal.SIGTERM)
-                sleep (10) ## sleep 10 seconds
+                time.sleep(10) ## sleep 10 seconds
                 if (self._pid_exists(pid)):
                     os.kill(pid,signal.SIGKILL)
                 sys.exit(0) ## we are forked se better exit now.
