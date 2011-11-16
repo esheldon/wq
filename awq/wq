@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
     %prog [options] command [command options]
-
+pi
 Basic command modes are the following.  There are additional
 options for each command
 
@@ -173,6 +173,7 @@ class Submitter(dict):
         options, args = parser.parse_args(args)
 
         self['require_arg'] = options.require
+        self['commandline'] = options.command
         if len(args) > 0:
             # a job file was sent
             job_file = args[0]
@@ -227,9 +228,15 @@ class Submitter(dict):
         return req
 
     def print_job_info(self):
+        print '------------'
+        print 'Job info:\n'
         print 'command:',self['command']
         for k in self['require']:
             print '%s: %s' % (k,self['require'][k])
+        print '------------'
+
+    def receive_signal(self,a,b):
+        pass
 
     def execute(self):
         message = {}
@@ -245,15 +252,31 @@ class Submitter(dict):
         if sres['response'] == 'wait':
             import time
             # wait until we can go
-            signal.signal(signal.SIGUSR1, receive_signal)
+            signal.signal(signal.SIGUSR1, self.receive_signal)
             signal.pause()
-            print 'I would run command here if implemented'
-            time.sleep(10000)
+            message['command']='gethosts'
+            sres=send_message(message)
 
-        elif sres['response'] == 'run':
-            import time
-            print 'I would run command immediately here if implemented'
-            time.sleep(10000)
+        ## time to run
+    
+        ### Now execute
+        hosts=sres['hosts']
+        target=hosts[0]
+        pwd =os.getcwd()
+        commandline=self['commandline']
+        ## here we execute
+        print "----------------- EXECUTING JOB"
+        os.system ('ssh -t '+target+'  "cd '+pwd+'; '+commandline+' "')
+        
+        print "----------------- DONE"
+        ### now we notify done.
+
+        message['command']='notify'
+        message['notification']='done'
+        sres = send_message(message)
+        print sres
+                             
+
 
 
 def send_message(message):
