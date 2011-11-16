@@ -384,6 +384,37 @@ class JobQueue:
         else:
             self._process_command(message)
 
+    def refresh(self):
+        """
+        refresh the job list
+
+        This is the key, as it tells the jobs when they can run.
+
+            - Remove jobs where the pid no longer is valid.
+        Otherwise run match(cluster) and
+            - are the requirements met and we can run?
+            - note we should have no 'nevermatch' status here
+
+        """
+
+        for i,job in enumerate(self.queue):
+            if job['status'] == 'run':
+                # job was told to run.
+                # see if the pid is still running, if not remove the job
+                if not self._pid_exists(job['pid']):
+                    print 'removing job %s, pid no longer valid'
+                    del self.queue[i]
+            else:
+                # we if we can now run the job
+                job.match(self.cluster)
+                if job['status'] == 'run':
+                    # *now* send a signal to start it
+                    self._signal_start(job['pid'])
+
+    def get_response(self):
+        return self.response
+
+
     def _process_command(self, message):
         command = message['command']
         if command in ['sub','submit']:
@@ -475,40 +506,14 @@ class JobQueue:
     def _pid_exists(self, pid):        
         """ Check For the existence of a unix pid. """
         try:
+            # this doesn't actually kill the job, it does nothing if the pid
+            # exists, if doesn't exist raises OSError
             os.kill(pid, 0)
         except OSError:
             return False
         else:
             return True
 
-    def refresh(self):
-        """
-        refresh the job list
-
-        This is the key, as it tells the jobs when they can run.
-
-            - Remove jobs where the pid no longer is valid.
-        Otherwise run match(cluster) and
-            - are the requirements met and we can run?
-            - note we should have no 'nevermatch' status here
-
-        """
-
-        for i,job in enumerate(self.queue):
-            if job['status'] == 'run':
-                # job was told to run.
-                # see if the pid is still running, if not remove the job
-                if not self._pid_exists(job['pid']):
-                    del self.queue[i]
-            else:
-                # we if we can now run the job
-                job.match(self.cluster)
-                if job['status'] == 'run':
-                    # *now* send a signal to start it
-                    self._signal_start(job['pid'])
-
-    def get_response(self):
-        return self.response
 
 
     
