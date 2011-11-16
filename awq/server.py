@@ -212,6 +212,26 @@ class Job(dict):
                     hosts.append(h)
                 N=0
                 match=True
+
+        elif (submit_mode=='bygrp'):
+            g = reqs['grp']
+            ing=reqs['in_group']
+            if (len(ing)!=1):
+                pmatch=False
+            else:
+                ing=ing[0]
+                for h in self.cluster.nodes.keys():
+                    nd = self.cluster.nodes[h]
+                    if ing in nd.grps:
+                        pmatch=True
+                        match=True
+                        if (nd.use>0):
+                            match=False
+                            break
+                        else:
+                            for x in range(nd.ncores):
+                                hosts.append(h)
+
         else:
             pmatch=False ## unknown request never mathces
             pass
