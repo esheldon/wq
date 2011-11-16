@@ -194,10 +194,14 @@ class Job(dict):
 
         if (submit_mode=='bycore'):
             pmatch, match, hosts, reason = self._match_bycore(cluster)
+        if (submit_mode=='bycore1'):
+            pmatch, match, hosts, reason = self._match_bycore(cluster)
         elif (submit_mode=='bynode'):
             pmatch, match, hosts, reason = self._match_bynode(cluster)
         elif (submit_mode=='byhost'):
             pmatch, match, hosts,reason = self._match_byhost(cluster)
+        elif (submit_mode=='bygrp'):
+            pmatch, match, hosts,reason = self._match_bygrp(cluster)
         else:
             pmatch=False ## unknown request never mathces
             reason="bad submit_mode '%s'" % submit_mode
@@ -212,6 +216,7 @@ class Job(dict):
         else:
             self['status']='nevermatch'
             self['reason']=reason
+
 
     def _match_bycore(self, cluster):
 
@@ -260,13 +265,83 @@ class Job(dict):
                     hosts.append(h)
                 N=0
                 match=True
-                break #we are done
+                break
             else:
                 N-=nfree
                 for x in xrange(nfree):
                     hosts.append(h)
 
+        if (not pmatch):
+            reason = 'Not enough total cores satistifying condition.'
+        else if (not match):
+            resont = 'Not enough free cores.'
+    
         return pmatch, match, hosts, reason
+
+
+
+    def _match_bycore1(self, cluster):
+
+        pmatch=False
+        match=False
+        hosts=[] # actually matched hosts
+        reason=''
+
+        reqs = self['require']
+
+        N = reqs.get('N', 1)
+        Np=N
+
+        for h in cluster.nodes:
+            nd = cluster.nodes[h]
+
+            ## is this node actually what we want
+            ing = reqs.get('in_group',[])
+            if len(ing) > 0: ##any group in any group
+                ok=False
+                for g in ing:
+                    if g in nd.grps:
+                        ok=True
+                        break
+                if (not ok):
+                    continue ### not in the group
+                    
+            ing = reqs.get('not_in_group',[])
+            if len(ing) > 0: ##any group in any group
+                ok=True
+                for g in ing:
+                    if g in nd.grps:
+                        ok=False
+                        break
+                if (not ok):
+                    continue ### not in the group
+
+            if (nd.ncores>Np):
+                pmatch=True
+            else:
+                pass
+
+            nfree= nd.ncores-nd.used
+            if (nfree>=N):
+                for x in xrange(N):
+                    hosts.append(h)
+                N=0
+                match=True
+                break
+            else:
+                pass
+
+        if (not pmatch):
+            reason = 'Not a node with that many cores.'
+        else if (not match):
+            resont = 'Not enough free cores on any one node.'
+    
+        return pmatch, match, hosts, reason
+
+
+
+
+        
 
 
     def _match_bynode(self, cluster):
@@ -318,6 +393,12 @@ class Job(dict):
                     match=True
                     break
 
+        if (not pmatch):
+            reason = 'Not enough total cores satistifying condition.'
+        else if (not match):
+            resont = 'Not enough free cores.'
+    
+
         return pmatch, match, hosts, reason
 
     def _match_byhost(self, cluster):
@@ -352,8 +433,43 @@ class Job(dict):
                 hosts.append(h)
             N=0
             match=True
+        else:
+            reason "Not enough free cores on "+h
 
         return pmatch, match, hosts, reason
+
+
+    def _match_bygrp(self, cluster):
+
+        pmatch=False
+        match=False
+        hosts=[] # actually matched hosts
+        reason=''
+
+        reqs = self['require']
+        g=reqs.get('group',None)
+        if not g:
+            pmatch=False
+            reason = 'Need to specify group'
+        else:
+            ing=ing[0]
+            for h in self.cluster.nodes.keys():
+                nd = self.cluster.nodes[h]
+                if ing in nd.grps:
+                    pmatch=True
+                    match=True
+                    if (nd.use>0):
+                        match=False ## we actually demand the entire group
+                        reason = 'Host '+h+' not entirely free.'
+                        break
+                    else:
+                        for x in range(nd.ncores):
+                            hosts.append(h)
+            if (not pmatch):
+                reason = 'Not a single node in that group'
+        return pmatch, match, hosts, reason
+
+
 
     def unmatch(self, cluster):
         if self['status'] == 'run':

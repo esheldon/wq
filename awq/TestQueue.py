@@ -69,7 +69,24 @@ print cluster.Status()
 print '--------------'
 
 
+
+req={}
+req['submit_mode']='bygrp'
+req['in_group']=['gen4']
+req['not_in_group']=[]
+req['min_cores']=0
+req['N']=6
+j6 = server.Job ({'require':req},a)
+j6.match()
+print j6['status']
+print j6.cluster.Status()
+
+
+
 for x in [j,j2,j3,j4,j5]:
     x.unmatch(cluster)
 print cluster.Status()
 
+j6.match()
+print j6['status']
+print j6.cluster.Status()
