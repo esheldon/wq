@@ -500,7 +500,7 @@ class JobQueue:
         else:
             self._process_command(message)
 
-    def refresh(self):
+    def refresh(self, purge=False):
         """
         refresh the job list
 
@@ -526,6 +526,7 @@ class JobQueue:
                 if job['status'] == 'run':
                     # *now* send a signal to start it
                     self._signal_start(job['pid'])
+
 
     def get_response(self):
         return self.response
@@ -602,6 +603,7 @@ class JobQueue:
                 self.response['error'] = "remove requests must contain the 'pid' field"
                 return
             self._remove(pid)
+            self._refresh()
         elif notifi == 'refresh':
             self._refresh()
         else:
@@ -610,10 +612,23 @@ class JobQueue:
 
     def _remove(self, pid):
         for i,job in enumerate(self.queue):
-            if j['pid'] == pid:
+            if job['pid'] == pid:
+                self._signal_terminate(self,pid)
+                job.unmatch()
                 del self.queue[i]
                 self.response['response'] = 'OK'
                 break
+
+    def _signal_terminate(self,pid):
+        if self._pid_exists(pid):
+            if (os.fork()): # we fork as we don't want to break everything for 10 secs
+                return
+            else:
+                os.kill(pid,signal.SIGTERM)
+                sleep (10) ## sleep 10 seconds
+                if (self._pid_exists(pid)):
+                    os.kill(pid,signal.SIGKILL)
+                sys.exit(0) ## we are forked se better exit now.
 
     def _signal_start(self, pid):
         import signal
