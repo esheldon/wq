@@ -1,0 +1,6 @@
+mode: bynode
+command: bash
+group:
+    - gen1
+    - gen2
+notgroup: [gen3,gen4]
