@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
     %prog [options] command [command options]
-pi
+
 Basic command modes are the following.  There are additional
 options for each command
 
@@ -11,8 +11,10 @@ options for each command
     rm:         Remove a job.
     refresh:    Force a refresh of the job queue.
 
-To get help on each command, use -h, e.g.
-    %prog submit -h
+To get help on each command, use -h, for example
+    %prog sub -h
+    %prog rm -h
+
 """
 
 import socket
@@ -190,7 +192,7 @@ class Submitter(dict):
         self['require'] = yaml.load(open(fname))
         if 'command' not in self['require']:
             raise ValueError("no command found in job file")
-        self['command'] = self['require']['command']
+        self['commandline'] = self['require']['command']
 
         # don't need this in the requirements
         del self['require']['command']
@@ -204,7 +206,7 @@ class Submitter(dict):
         require = self._process_require_arg()
 
         self['require'] = require
-        self['command'] = command
+        self['commandline'] = command
 
     def _process_require_arg(self):
         req={}
@@ -229,7 +231,7 @@ class Submitter(dict):
     def print_job_info(self):
         print '------------'
         print 'Job info:\n'
-        print 'command:',self['command']
+        print 'command line:',self['commandline']
         for k in self['require']:
             print '%s: %s' % (k,self['require'][k])
         print '------------'
@@ -262,7 +264,7 @@ class Submitter(dict):
         hosts=sres['hosts']
         target=hosts[0]
         pwd =os.getcwd()
-        command=self['command']
+        command=self['commandline']
         ## here we execute
         print "----------------- EXECUTING JOB"
         os.system ('ssh -t '+target+'  "cd '+pwd+'; '+command+' "')
