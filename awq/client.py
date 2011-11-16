@@ -101,7 +101,7 @@ def main():
         parser.print_help()
         sys.exit(0)
 
-    commands = ['sub','submit', 'ls', 'list','rm','remove']
+    commands = ['sub','submit', 'ls', 'list','rm','remove','refresh']
     command=args.pop(0)
     if (command not in commands):
         print "Bad command '%s', must be one of: %s" % (command,','.join(commands))

@@ -12,6 +12,7 @@ import socket
 import json
 import copy
 import sys
+import os
 
 HOST = ''      # Symbolic name meaning all available interfaces
 PORT = 51093   # Arbitrary non-privileged port
@@ -395,6 +396,8 @@ class JobQueue:
             self._process_remove_request(message)
         elif command == 'notify':
             self._process_notification(message)
+        elif command == 'refresh':
+            self.refresh()
         else:
             self.response['error'] = "only support 'sub' and 'list' commands"
 
@@ -415,9 +418,12 @@ class JobQueue:
             self.response['error'] = "job requirements do not match this cluster"
             self.response['reason'] = newjob['reason']
         else:
+            # if the status is 'run', the job will immediately
+            # run. Otherwise it will wait and can't run till
+            # we do a refresh
             self.queue.append(newjob)
+            self.response['response'] = newjob['status']
 
-        self.response['response'] = 'wait'
 
     def _process_listing_request(self, message):
         listing = []
@@ -462,20 +468,44 @@ class JobQueue:
                 self.response['response'] = 'OK'
                 break
 
+    def _signal_start(self, pid):
+        import signal
+        os.kill(pid, signal.SIGUSR1)
+
+    def _pid_exists(self, pid):        
+        """ Check For the existence of a unix pid. """
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return False
+        else:
+            return True
+
     def refresh(self):
         """
         refresh the job list
 
-        Loop through the jobs.  Try to match each job against the cluster.  This means 
-        
-            - is the job runnable on the cluster at all
-            - are the requirements met and we can run?
-            - Does the pid associated with the job still exits.  If not, remove
-            the job
+        Remove jobs where the pid no longer is valid.
 
-        Need to wait for Anze on this
+        Otherwise run match(cluster) and
+            - are the requirements met and we can run?
+            - note we should have no 'nevermatch' status here
+
         """
-        pass
+
+        for i,job in enumerate(self.queue):
+            if job['status'] == 'run':
+                # job was told to run.
+                # see if the pid is still running, if not remove the job
+                if not self._pid_exists(job['pid']):
+                    del self.queue[i]
+            else:
+                # we if we can now run the job
+                job.match(self.cluster)
+                if job['status'] == 'run':
+                    # *now* send a signal to start it
+                    self._signal_start(job['pid'])
+
     def get_response(self):
         return self.response
 
