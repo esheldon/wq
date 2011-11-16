@@ -485,8 +485,9 @@ class JobQueue:
         """
         refresh the job list
 
-        Remove jobs where the pid no longer is valid.
+        This is the key, as it tells the jobs when they can run.
 
+            - Remove jobs where the pid no longer is valid.
         Otherwise run match(cluster) and
             - are the requirements met and we can run?
             - note we should have no 'nevermatch' status here
