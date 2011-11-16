@@ -68,7 +68,7 @@ class Cluster:
         tot=0
         used=0
         use=[]
-        for h in self.nodes.keys():
+        for h in self.nodes:
             tot+=self.nodes[h].ncores
             used+=self.nodes[h].used
             if (self.nodes[h].used>0):
@@ -105,117 +105,17 @@ class Job(dict):
         if (self['status']!='wait'):
             return
 
-        reqs=self['require']
-        submit_mode=reqs['submit_mode']
-
-        pmatch=False
-        match=False
-        hosts=[] # actually matched hosts
+        submit_mode=self['require']['submit_mode']
 
         if (submit_mode=='bycore'):
-            N=reqs['N']
-            Np=N
-            for h in self.cluster.nodes.keys():
-                nd = self.cluster.nodes[h]
-
-                ## is this node actually what we want
-                ing=reqs['in_group']
-                if (len(ing)>0): ##any group in any group
-                    ok=False
-                    for g in ing:
-                        if g in nd.grps:
-                            ok=True
-                            break
-                    if (not ok):
-                        continue ### not in the group
-                        
-                ing=reqs['not_in_group']
-                if (len(ing)>0): ##any group in any group
-                    ok=True
-                    for g in ing:
-                        if g in nd.grps:
-                            ok=False
-                            break
-                    if (not ok):
-                        continue ### not in the group
-
-                if (nd.ncores>Np):
-                    pmatch=True
-                else:
-                    Np-=nd.ncores
-
-                nfree= nd.ncores-nd.used
-                if (nfree>=N):
-                    for x in range(N):
-                        hosts.append(h)
-                    N=0
-                    match=True
-                    break #we are done
-                else:
-                    N-=nfree
-                    for x in range(nfree):
-                        hosts.append(h)
-
+            pmatch, match, hosts = self.match_bycore()
         elif (submit_mode=='bynode'):
-            N=reqs['N']
-            Np=N
-            for h in self.cluster.nodes.keys():
-                nd = self.cluster.nodes[h]
-                if (nd.ncores<reqs['min_cores']):
-                    continue
-                ## is this node actually what we want
-                ing=reqs['in_group']
-                if (len(ing)>0): ##any group in any group
-                    ok=False
-                    for g in ing:
-                        if g in nd.grps:
-                            ok=True
-                            break
-                    if (not ok):
-                        continue ### not in the group
-
-                        
-                ing=reqs['not_in_group']
-                if (len(ing)>0): ##any group in any group
-                    ok=True
-                    for g in ing:
-                        if g in nd.grps:
-                            ok=False
-                            break
-                    if (not ok):
-                        continue ### not in the group
-                
-                Np-=1
-                if (Np==0):
-                    pmatch=True
-                if (nd.used==0):
-                    N-=1
-                    for x in range(nd.ncores):
-                        hosts.append(h)
-                    if (N==0):
-                        match=True
-                        break
-
-
-
+            pmatch, match, hosts = self.match_bynode()
         elif (submit_mode=='exactnode'):
-            h = reqs['node']
-            nd = self.cluster.nodes[h]
-            N= reqs['N']
-            
-            if (nd.ncores>=N):
-                pmatch=True
-
-            nfree = nd.ncores-nd.used
-            if (nfree>=N):
-                for x in range(N):
-                    hosts.append(h)
-                N=0
-                match=True
+            pmatch, match, hosts = self.match_exactnode()
         else:
             pmatch=False ## unknown request never mathces
-            pass
-                        
+
         if (pmatch):
             if match:
                 self['hosts']=hosts
@@ -226,6 +126,132 @@ class Job(dict):
         else:
             self['status']='nevermatch'
                     
+
+    def match_bycore(self):
+        reqs = self['require']
+        N=reqs['N']
+        Np=N
+
+        pmatch=False
+        match=False
+        hosts=[] # actually matched hosts
+
+        for h in self.cluster.nodes:
+            nd = self.cluster.nodes[h]
+
+            ## is this node actually what we want
+            ing=reqs['in_group']
+            if (len(ing)>0): ##any group in any group
+                ok=False
+                for g in ing:
+                    if g in nd.grps:
+                        ok=True
+                        break
+                if (not ok):
+                    continue ### not in the group
+                    
+            ing=reqs['not_in_group']
+            if (len(ing)>0): ##any group in any group
+                ok=True
+                for g in ing:
+                    if g in nd.grps:
+                        ok=False
+                        break
+                if (not ok):
+                    continue ### not in the group
+
+            if (nd.ncores>Np):
+                pmatch=True
+            else:
+                Np-=nd.ncores
+
+            nfree= nd.ncores-nd.used
+            if (nfree>=N):
+                for x in xrange(N):
+                    hosts.append(h)
+                N=0
+                match=True
+                break #we are done
+            else:
+                N-=nfree
+                for x in xrange(nfree):
+                    hosts.append(h)
+
+        return pmatch, match, hosts
+
+
+    def match_bynode(self):
+        reqs = self['require']
+        N=reqs['N']
+        Np=N
+
+        pmatch=False
+        match=False
+        hosts=[] # actually matched hosts
+
+
+        N=reqs['N']
+        Np=N
+        for h in self.cluster.nodes:
+            nd = self.cluster.nodes[h]
+            if (nd.ncores<reqs['min_cores']):
+                continue
+            ## is this node actually what we want
+            ing=reqs['in_group']
+            if (len(ing)>0): ##any group in any group
+                ok=False
+                for g in ing:
+                    if g in nd.grps:
+                        ok=True
+                        break
+                if (not ok):
+                    continue ### not in the group
+
+                    
+            ing=reqs['not_in_group']
+            if (len(ing)>0): ##any group in any group
+                ok=True
+                for g in ing:
+                    if g in nd.grps:
+                        ok=False
+                        break
+                if (not ok):
+                    continue ### not in the group
+            
+            Np-=1
+            if (Np==0):
+                pmatch=True
+            if (nd.used==0):
+                N-=1
+                for x in xrange(nd.ncores):
+                    hosts.append(h)
+                if (N==0):
+                    match=True
+                    break
+
+        return pmatch, match, hosts
+
+    def match_exactnode(self):
+        reqs = self['require']
+        h = reqs['node']
+        nd = self.cluster.nodes[h]
+        N= reqs['N']
+        
+        pmatch=False
+        match=False
+        hosts=[] # actually matched hosts
+
+        if (nd.ncores>=N):
+            pmatch=True
+
+        nfree = nd.ncores-nd.used
+        if (nfree>=N):
+            for x in xrange(N):
+                hosts.append(h)
+            N=0
+            match=True
+
+        return pmatch, match, hosts
 
     def unmatch(self):
         if (self['status']=='run'):
@@ -348,8 +374,8 @@ def main():
 
 
     try:
-        while 1:
-            while 1:
+        while True:
+            while True:
                 try:
                     conn, addr = sock.accept()
                     print 'Connected by', addr
@@ -359,7 +385,7 @@ def main():
                     print 'refreshing queue'
                     queue.refresh()
 
-            while 1:
+            while True:
                 # this is just in case the data are larger than the buffer
                 data = conn.recv(MAX_BUFFSIZE)
 
