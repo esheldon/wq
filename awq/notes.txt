@@ -3,17 +3,37 @@ called "host".  We should be consistent, maybe just "host"
 
 And make the matching be
 
-    bycore: require a certain number of cores on any node
-    bynode: require a certain number of full nodes 
-    byhost: require exact hostname match and get full node back
-    bygrp: requires a full (single) group of nodes
+Compulsory arguments denoted by (*)
 
+* bycore: require a certain number of cores on any node
+  Options: in_group, not_in_group, N
+  Nodes must be in_group if specified
+  Nodes should not be in not_in_group if specified
+  We allocate a total of N cores, default = 1
 
-When matching by host and by node, how many cores will we use by *default*?
-All or one?  
+* bycore1: rquires a certain number of cores on a single node
+  Options: in_group, not_in_group, N
+  Nodes must be in_group if specified
+  Nodes should not be in not_in_group if specified
+  We allocate a total of N cores demand them to be on the same 
+  node, default = 1
 
+* bynode: require a certain number of full nodes 
+  Options: in_group, not_in_group, N, min_cores
+  Nodes must be in_group if specified
+  Nodes should not be in not_in_group if specified
+  We allocate a total of N nodes, default = 1
+  Each node must have at least min_cores total cores.
+  We never match a partially loaded nodes, we always demans full nodes
 
-By defaulting to all we we don't have to know ahead of time how
-many cores the nodes have.  Currently defaulting to None.
+* byhost: require exact hostname match 
+  Options: host (*) , N
+  We demand N cores on host host.
+
+* bygrp: requires a full (single) group of nodes
+  Options: group (*)
+  We demans the entire group group. 
+  All nodes must be completelly free on that group for a match
+
 
 
