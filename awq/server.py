@@ -48,6 +48,8 @@ class Server:
                 # we just reached the timeout, refresh the queue
                 print 'refreshing queue'
                 self.queue.refresh()
+                print self.queue.cluster.Status()
+
 
     def run(self):
         self.open_socket()
@@ -195,7 +197,7 @@ class Job(dict):
 
         if (submit_mode=='bycore'):
             pmatch, match, hosts, reason = self._match_bycore(cluster)
-        if (submit_mode=='bycore1'):
+        elif (submit_mode=='bycore1'):
             pmatch, match, hosts, reason = self._match_bycore(cluster)
         elif (submit_mode=='bynode'):
             pmatch, match, hosts, reason = self._match_bynode(cluster)
@@ -243,6 +245,7 @@ class Job(dict):
 
         for h in cluster.nodes:
             nd = cluster.nodes[h]
+            print "node = ",h
 
             ## is this node actually what we want
             ing = self._get_req_list(reqs, 'group')
@@ -265,12 +268,14 @@ class Job(dict):
                 if (not ok):
                     continue ### not in the group
 
+            print "nd.nc=",nd.ncores
             if (nd.ncores>Np):
                 pmatch=True
             else:
                 Np-=nd.ncores
 
             nfree= nd.ncores-nd.used
+            print "nfree=",nfree, N
             if (nfree>=N):
                 for x in xrange(N):
                     hosts.append(h)
@@ -287,6 +292,7 @@ class Job(dict):
         elif (not match):
             resont = 'Not enough free cores.'
     
+        print pmatch, match, hosts, reason
         return pmatch, match, hosts, reason
 
 
@@ -498,6 +504,7 @@ class JobQueue:
     def __init__(self, cluster_file):
         print "Loading cluster"
         self.cluster = Cluster(cluster_file)
+        print self.cluster.Status()
         self.queue = []
 
     def process_message(self, message):
@@ -530,6 +537,7 @@ class JobQueue:
                 # see if the pid is still running, if not remove the job
                 if not self._pid_exists(job['pid']):
                     print 'removing job %s, pid no longer valid'
+                    self.queue[i].unmatch(self.cluster)
                     del self.queue[i]
             else:
                 # we if we can now run the job
@@ -547,6 +555,8 @@ class JobQueue:
         command = message['command']
         if command in ['sub']:
             self._process_submit_request(message)
+        elif command == 'gethosts':
+            self._process_gethosts(message)
         elif command in ['ls']:
             self._process_listing_request(message)
         elif command in ['stat']:
@@ -582,7 +592,25 @@ class JobQueue:
             # we do a refresh
             self.queue.append(newjob)
             self.response['response'] = newjob['status']
+            if (response['response']=='run'):
+                    self.response['hosts']=newjob['hosts']
 
+    def _process_gethosts(self, message):
+        pid = message.get('pid')
+        if pid is None:
+            self.response['error'] = "submit requests must contain the 'pid' field"
+            return
+
+        if pid not in self.queue:
+            self.response['error'] = "we don't have this pid"
+            return
+
+        if 'hosts' not in self.queue[pid]:
+            self.response['error'] = "pid has no hosts yet"
+            return
+
+        self.response['hosts']=self.queue[pid]['hosts']
+        
 
     def _process_listing_request(self, message):
         listing = []
@@ -600,7 +628,7 @@ class JobQueue:
             self.response['error'] = "remove requests must contain the 'pid' field"
             return
 
-        self._remove(pid)
+        self._remove(pid,force=True)
 
     def _process_notification(self, message):
         notifi = message.get('notification',None)
@@ -614,32 +642,29 @@ class JobQueue:
                 self.response['error'] = "remove requests must contain the 'pid' field"
                 return
             self._remove(pid)
-            self._refresh()
+            self.refresh()
         elif notifi == 'refresh':
-            self._refresh()
+            self.refresh()
         else:
             self.response['error'] = "Only support 'done' or 'refresh' notifications for now"
             return
 
-    def _remove(self, pid):
+    def _remove(self, pid, force=False):
         for i,job in enumerate(self.queue):
             if job['pid'] == pid:
-                self._signal_terminate(self,pid)
-                job.unmatch()
+                if (force):
+                    self._signal_terminate(pid)
+                job.unmatch(self.cluster)
                 del self.queue[i]
                 self.response['response'] = 'OK'
                 break
 
     def _signal_terminate(self,pid):
         if self._pid_exists(pid):
-            if (os.fork()): # we fork as we don't want to break everything for 10 secs
-                return
-            else:
-                os.kill(pid,signal.SIGTERM)
-                sleep (10) ## sleep 10 seconds
-                if (self._pid_exists(pid)):
-                    os.kill(pid,signal.SIGKILL)
-                sys.exit(0) ## we are forked se better exit now.
+            os.kill(pid,signal.SIGTERM)
+            sleep (2) ## sleep  a bit
+            if (self._pid_exists(pid)):
+                os.kill(pid,signal.SIGKILL)
 
     def _signal_start(self, pid):
         import signal
