@@ -126,29 +126,21 @@ class Lister(dict):
         for k in names:
             fmt.append('%('+k+')-'+str(lens[k])+'s')
         fmt = ' '.join(fmt)
+        fmt = ' '+fmt
 
 
         # this is the header for each column
         if len(lines) > 0:
-            print fmt % {'pid':'pid','user':'user',
-                         'status':'status', 'ncores':'ncores',hname:hname,'command':'command'}
+            print fmt % {'pid':'Pid','user':'User',
+                         'status':'Status', 'ncores':'Ncores',hname:hname,'command':'Command'}
         for l in lines:
             print fmt % l
 
-        print
-        stats='running: %s waiting: %s' % (nrun,nwait)
+        stats='Running: %s Waiting: %s' % (nrun,nwait)
         if self.user is not None:
-            print 'Jobs for user: %s  %s' % (','.join(self.user),stats)
+            print ' User: %s Jobs: %s' % (','.join(self.user),stats)
         else:
-            print 'Jobs: %s' % stats
-
-        """
-                print "%(pid)s %(user)s %(status)s %(commandline)10s     "%r,
-                if (r['status']=='run'):
-                    print 'Nc=',len(r['hosts'])
-                else:
-                    print 'Reason = ',r['reason']
-        """
+            print ' Jobs: %s' % stats
                 
     def _get_ncores(self, r):
         if r['status'] == 'run':
