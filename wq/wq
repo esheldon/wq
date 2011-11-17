@@ -53,7 +53,10 @@ class Lister(dict):
     """
     usage: wq ls [options]
 
-    print the jobs in the queue to stdout
+    print the jobs in the queue to stdout.  If -f/--full is sent,
+    the full command line is displayed and the full host list is displayed.
+    Normally, only the first part of the command is shown, and only the
+    number of hosts is shown.
     """
 
     def __init__(self, args):
@@ -64,9 +67,13 @@ class Lister(dict):
         parser=OptionParser(Lister.__doc__)
         parser.add_option("-u", "--user", default=None, 
                           help="Only list jobs for the user.  can be a comma separated list")
+        parser.add_option("-f", "--full", action='store_true',
+                          help="Give a more detailed listing")
 
         options, args = parser.parse_args(args)
         self.user = options.user
+        self.full = options.full
+
         if self.user is not None:
             self.user = self.user.split(',')
 
@@ -76,19 +83,118 @@ class Lister(dict):
 
         resp = send_message(message)
 
-        if self.user is not None:
-            print 'Job listing for user:',','.join(self.user)
+
+        if self.full:
+            hname='hosts'
         else:
-            print 'job listing: '
+            hname='nhosts'
+        names = ['pid','user','status','ncores',hname,'command']
+
+        lens={}
+        for k in names:
+            lens[k] = len(k)
+
+        nrun=0
+        nwait=0
+        lines = []
         for r in resp['response']:
+
             if (self.user is None) or (r['user'] in self.user):
-                #print r
+                if r['status'] == 'run':
+                    nrun+=1
+                else:
+                    nwait+=1
+
+                this={}
+                this['pid'] = r['pid']
+                this['user'] = r['user']
+                this['status'] = self._get_status(r)
+                this['ncores'] = self._get_ncores(r)
+                this['command'] = self._get_command(r)
+
+                if self.full:
+                    this['hosts'] = self._get_hosts(r)
+                else:
+                    this['nhosts'] = self._get_nhosts(r)
+                
+                for k in this:
+                    lens[k] = max(lens[k], len(('%s' % this[k])))
+                
+                lines.append(this)
+
+        fmt = []
+        for k in names:
+            fmt.append('%('+k+')-'+str(lens[k])+'s')
+        fmt = ' '.join(fmt)
+
+
+        # this is the header for each column
+        print fmt % {'pid':'pid','user':'user',
+                     'status':'status', 'ncores':'ncores',hname:hname,'command':'command'}
+        for l in lines:
+            print fmt % l
+
+        print
+        stats='running: %s waiting: %s' % (nrun,nwait)
+        if self.user is not None:
+            print 'Jobs for user: %s %s' % (','.join(self.user),stats)
+        else:
+            print 'Jobs: %s' % stats
+
+        """
                 print "%(pid)s %(user)s %(status)s %(commandline)10s     "%r,
                 if (r['status']=='run'):
                     print 'Nc=',len(r['hosts'])
                 else:
                     print 'Reason = ',r['reason']
+        """
                 
+    def _get_ncores(self, r):
+        if r['status'] == 'run':
+            return len(r['hosts'])
+        else:
+            return '-'
+
+    def _get_hosts(self, r):
+        if r['status'] != 'run':
+            return '-'
+
+        if not r['hosts']:
+            return '-'
+        else:
+            hd={}
+            for host in r['hosts']:
+                hd[host] = host
+            hosts = list(hd.keys())
+            hosts.sort()
+            return ','.join(hosts)
+
+    def _get_nhosts(self, r):
+        if r['status'] == 'run':
+            hd={}
+            for host in r['hosts']:
+                hd[host] = host
+            return len(hd)
+        else:
+            return '-'
+
+    def _get_status(self, r):
+        if self.full:
+            if r['status'] == 'run':
+                return 'running'
+            else:
+                return r['reason']
+        else:
+            if r['status'] == 'run':
+                return 'R'
+            else:
+                return 'W'
+
+    def _get_command(self, r):
+        if self.full:
+            return r['commandline']
+        else:
+            return r['commandline'].split()[0]
 
 class Stats(dict):
     """
