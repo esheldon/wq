@@ -138,7 +138,7 @@ class Lister(dict):
         print
         stats='running: %s waiting: %s' % (nrun,nwait)
         if self.user is not None:
-            print 'Jobs for user: %s %s' % (','.join(self.user),stats)
+            print 'Jobs for user: %s  %s' % (','.join(self.user),stats)
         else:
             print 'Jobs: %s' % stats
 
