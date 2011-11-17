@@ -242,7 +242,7 @@ class Job(dict):
         """
         val = reqs.get(key,[])
         if not isinstance(val, list):
-            val = val.split(',')
+            val = [val]
         return val
 
     def _match_bycore(self, cluster):
