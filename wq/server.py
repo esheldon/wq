@@ -68,7 +68,6 @@ class Server:
                 conn, addr = self.wait_for_connection()
                 data = conn.recv(MAX_BUFFSIZE)
 
-                print 'data:',data
                 if not data: 
                     break
 
@@ -546,14 +545,13 @@ class JobQueue:
         """
 
         for i,job in enumerate(self.queue):
-            if job['status'] == 'run':
-                # job was told to run.
-                # see if the pid is still running, if not remove the job
-                if not self._pid_exists(job['pid']):
-                    print 'removing job %s, pid no longer valid'
-                    self.queue[i].unmatch(self.cluster)
-                    del self.queue[i]
-            else:
+            # job was told to run.
+            # see if the pid is still running, if not remove the job
+            if not self._pid_exists(job['pid']):
+                print 'removing job %s, pid no longer valid'
+                self.queue[i].unmatch(self.cluster)
+                del self.queue[i]
+            elif job['status'] != 'run':
                 # we if we can now run the job
                 job.match(self.cluster)
                 if job['status'] == 'run':
@@ -607,7 +605,9 @@ class JobQueue:
             self.queue.append(newjob)
             self.response['response'] = newjob['status']
             if (self.response['response']=='run'):
-                    self.response['hosts']=newjob['hosts']
+                self.response['hosts']=newjob['hosts']
+            elif self.response['response'] == 'wait':
+                self.response['reason'] = newjob['reason']
 
     def _process_gethosts(self, message):
         pid = message.get('pid')

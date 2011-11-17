@@ -129,8 +129,9 @@ class Lister(dict):
 
 
         # this is the header for each column
-        print fmt % {'pid':'pid','user':'user',
-                     'status':'status', 'ncores':'ncores',hname:hname,'command':'command'}
+        if len(lines) > 0:
+            print fmt % {'pid':'pid','user':'user',
+                         'status':'status', 'ncores':'ncores',hname:hname,'command':'command'}
         for l in lines:
             print fmt % l
 
@@ -357,13 +358,13 @@ class Submitter(dict):
         message['user'] = os.environ['USER']
         message['require'] = self['require']
         message['commandline'] = self['commandline']
-        self.print_job_info()
+        #self.print_job_info()
 
         sres = send_message(message)
 
         if sres['response'] == 'wait':
             # wait until we can go
-            print "----------------- WAITING"
+            print "waiting:",sres['reason']
             signal.signal(signal.SIGUSR1, self.receive_signal)
             signal.pause()
             message['command']='gethosts'
@@ -387,10 +388,10 @@ class Submitter(dict):
         pwd =os.getcwd()
         command=self['commandline']
         ## here we execute
-        print "----------------- EXECUTING JOB"
+        print "executing with pid:",message['pid']
         os.system ('ssh -t '+target+'  "cd '+pwd+'; '+command+' "')
         
-        print "----------------- DONE"
+        print "done"
         ### now we notify done.
 
         message['command']='notify'
