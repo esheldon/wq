@@ -321,9 +321,22 @@ class Submitter(dict):
         self['commandline'] = command
 
     def _process_require_arg(self):
+        import yaml
+        import re
+
         req={}
         if self['require_arg'] is None:
             return req
+
+        # convert semicolon to newline
+        r = self['require_arg']
+        r = re.sub(';\s*', '\n', r)
+        # make sure there is a space between : and valule
+        r = r.replace(':',': ')
+        
+        req = yaml.load(r)
+
+        """
         reqlist = self['require_arg'].split(':')
         for r in reqlist:
             rs = r.split('=')
@@ -337,7 +350,7 @@ class Submitter(dict):
                 req[key] = val
             else:
                 raise ValueError("mis-formatted requirements arg: %s'" % r)
-
+        """
         return req
 
     def print_job_info(self):
