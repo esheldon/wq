@@ -687,7 +687,10 @@ class JobQueue:
 
     def _signal_start(self, pid):
         import signal
-        os.kill(pid, signal.SIGUSR1)
+        try:
+            os.kill(pid, signal.SIGUSR1)
+        except OSError:
+            print 'pid %s no longer exists' % pid
 
     def _pid_exists(self, pid):        
         """ Check For the existence of a unix pid. """
