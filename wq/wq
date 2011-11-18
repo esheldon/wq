@@ -247,8 +247,8 @@ class Stats(dict):
         status=resp['response']
         nodes=status['nodes']
         for d in nodes:
-            print '['+'*'*int(d['used'])+'.'*int(d['ncores'])+'] ',
-            print d['hostname']+'              mem='+str(d['mem'])+' grps='+','.join(d['grps'])
+            print '['+'*'*int(d['used'])+'.'*int(d['ncores']-d['used'])+']'+' '*int(max(0,24-d['ncores'])),
+            print d['hostname']+' mem='+str(d['mem'])+' grps='+','.join(d['grps'])
 
         print '\n Used cores : %i/%i (%3.1f%%)'%(status['used'],status['ncores'],100.*status['used']/status['ncores'])
 
@@ -495,7 +495,12 @@ def send_message(message):
         data = sock.recv(pars['max_buffsize'])
 
         #print 'data from server:',data
-        rdict = json.loads(data)
+        try:
+            rdict = json.loads(data)
+        except:
+            print 'json err:'
+            print data
+            sys.exit(1)
         sock.close()
 
         if 'error' in rdict:
