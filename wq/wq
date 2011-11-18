@@ -47,6 +47,10 @@ class ServerWrapper:
             parser.print_help()
             sys.exit(1)
 
+        if args[0] == '-h':
+            parser.print_help()
+            sys.exit(1)
+
         self.srv = wq.server.Server(args[0], port=pars['port'])
     def execute(self):
         self.srv.run()
@@ -426,15 +430,45 @@ class Submitter(dict):
         print sres
         exit(0)
                                         
-        
+    def make_command_list(self, target_machine, command, require):
+        # first, force pseudo tty; this is key to make sure command
+        # dies if this client dies
+        cmdlist = ['ssh','-t', '-t']
+
+        # should we forward X? default is no no.  This is in the
+        # requirements as
+        #   X: true or X: 1 for yes (anything not False,0,None,'')
+        #   X: false or X: 0 for no
+        xforward = require.get('X',False)
+        if not xforward:
+            cmdlist.append('-x')
+
+        # full command, we first change directory to CWD
+        pwd =os.getcwd()
+        full_command='cd '+pwd+'; '+command
+
+        cmdlist.append(target_machine)
+        cmdlist.append(full_command)
+
+        return cmdlist
+
     def execute(self):
+        """
+
+        - build the message request for the server.  
+        - send the message and await reply
+        - Maybe wait until we can run 
+        - ssh into the target machine and run the job in the same
+          directory where this client is running.
+
+        For MPI jobs, a host file can be created.
+        """
         message = {}
         message['command'] = 'sub'
         message['pid'] = os.getpid()
         message['user'] = os.environ['USER']
         message['require'] = self['require']
         message['commandline'] = self['commandline']
-        #self.print_job_info()
 
         sres = send_message(message)
 
@@ -446,12 +480,10 @@ class Submitter(dict):
             message['command']='gethosts'
             sres=send_message(message)
 
-        ## time to run
+        ## save final message for potential kill
+        self.message=message
 
         ## if hostfile specified need to create one
-
-    
-        ### Now execute
         hosts=sres['hosts']
         if 'hostfile' in self['require']:
             f=open(self['require']['hostfile'],'w')
@@ -459,23 +491,20 @@ class Submitter(dict):
                 f.write(h+'\n')
             f.close()
 
-
         target=hosts[0]
-        pwd =os.getcwd()
         command=self['commandline']
 
-        ## save message for potential kill
-        self.message=message
         ## here we execute
-        print "executing with pid:",message['pid']
+        print "executing on host: %s with pid: %s" % (target,message['pid'])
         signal.signal(signal.SIGTERM, self.receive_kill)
-        ## twice -t important
-        self.remoteprocess= subprocess.Popen(['ssh','-t', '-t',target,'cd '+pwd+'; '+command])
+
+        cmdlist = self.make_command_list(target,command,self['require'])
+        self.remoteprocess= subprocess.Popen(cmdlist)
+        #self.remoteprocess= subprocess.Popen(['ssh','-t', '-t',target,'cd '+pwd+'; '+command])
         self.remoteprocess.wait()
 
-        print "done"
         ### now we notify done.
-
+        print "done"
         message['command']='notify'
         message['notification']='done'
         sres = send_message(message)

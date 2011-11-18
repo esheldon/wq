@@ -744,6 +744,13 @@ class JobQueue:
 
     def _pid_exists(self, pid):        
         """ Check For the existence of a unix pid. """
+        pid_path =  "/proc/%s" % pid
+        if os.path.exists(pid_path):
+            return True
+        else:
+            return False
+
+        """
         try:
             # this doesn't actually kill the job, it does nothing if the pid
             # exists, if doesn't exist raises OSError
@@ -752,7 +759,7 @@ class JobQueue:
             return False
         else:
             return True
-
+        """
 
 
     
