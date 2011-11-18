@@ -137,7 +137,8 @@ class Lister(dict):
         # this is the header for each column
         if len(lines) > 0:
             print fmt % {'pid':'Pid','user':'User',
-                         'status':'Status', 'priority':'Priority', 'ncores':'Ncores',hname:hname,'command':'Command','time_sub':'t_in','time_run':'t_run'}
+                         'status':'Status', 'priority':'Priority', 'ncores':'Ncores',
+                         hname:hname.capitalize(),'command':'Command','time_sub':'t_in','time_run':'t_run'}
         for l in lines:
             print fmt % l
 
@@ -243,16 +244,9 @@ class Stats(dict):
 
         resp = send_message(message)
 
-        print 'Cluster status:\n'
         status=resp['response']
-        nodes=status['nodes']
-        for d in nodes:
-            print '['+'*'*int(d['used'])+'.'*int(d['ncores']-d['used'])+']'+' '*int(max(0,24-d['ncores'])),
-            print d['hostname']+' mem='+str(d['mem'])+' grps='+','.join(d['grps'])
 
-        print '\n Used cores : %i/%i (%3.1f%%)'%(status['used'],status['ncores'],100.*status['used']/status['ncores'])
-
-
+        wq.server.print_stat(status)
 
 class Refresher(dict):
     """
@@ -406,21 +400,6 @@ class Submitter(dict):
         
         req = yaml.load(r)
 
-        """
-        reqlist = self['require_arg'].split(':')
-        for r in reqlist:
-            rs = r.split('=')
-            if len(rs) == 2:
-                key = rs[0]
-                try:
-                    val = eval(rs[1])
-                except:
-                    val = rs[1]
-
-                req[key] = val
-            else:
-                raise ValueError("mis-formatted requirements arg: %s'" % r)
-        """
         return req
 
     def print_job_info(self):
@@ -564,7 +543,11 @@ def main():
             sys.exit(1)
         del args[0]
 
-    cmd = args[0]
+    # now we can get the actual command, if it exists
+    if len(args) == 0:
+        parser.print_help()
+        sys.exit(1)
+
     cmd_obj = get_command_obj(args)
     if cmd_obj is None:
         parser.print_help()

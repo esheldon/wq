@@ -27,6 +27,21 @@ from optparse import OptionParser
 parser=OptionParser(__doc__)
 parser.add_option("-p", "--port", default=None, help="port for socket")
 
+
+def print_stat(status):
+    """
+    input status is the result of cluster.Status
+    """
+    print 'Cluster status:\n'
+    nodes=status['nodes']
+    for d in nodes:
+        print '['+'*'*int(d['used'])+'.'*int(d['ncores']-d['used'])+']'+' '*int(max(0,24-d['ncores'])),
+        print d['hostname']+' mem='+str(d['mem'])+' grps='+','.join(d['grps'])
+
+    print '\n Used cores : %i/%i (%3.1f%%)'%(status['used'],status['ncores'],100.*status['used']/status['ncores'])
+
+
+
 class Server:
     def __init__(self, cluster_file, port=None):
         self.cluster_file = cluster_file
@@ -56,7 +71,8 @@ class Server:
                 # we just reached the timeout, refresh the queue
                 print 'refreshing queue'
                 self.queue.refresh()
-                print self.queue.cluster.Status()
+                #print self.queue.cluster.Status()
+                print_stat(self.queue.cluster.Status())
 
 
     def run(self):
@@ -80,7 +96,7 @@ class Server:
                     message =json.loads(data)
                     print 'got JSON request:',message
                 except:
-                    ret = {"error":"could not e JSON request: '%s'" % data}
+                    ret = {"error":"could not process JSON request: '%s'" % data}
                     ret = json.dumps(ret)
                     conn.send(ret)
                     break
@@ -539,7 +555,8 @@ class JobQueue:
     def __init__(self, cluster_file):
         print "Loading cluster"
         self.cluster = Cluster(cluster_file)
-        print self.cluster.Status()
+        #print self.cluster.Status()
+        print_stat(self.cluster.Status())
         self.queue = []
 
     def process_message(self, message):
