@@ -413,6 +413,12 @@ class Submitter(dict):
     def receive_signal(self,a,b):
         pass
 
+    def receive_kill(sef,a,b):
+        try:
+            self.remoteprocess.kill()
+        except:
+            pass
+
     def execute(self):
         message = {}
         message['command'] = 'sub'
@@ -451,8 +457,11 @@ class Submitter(dict):
         command=self['commandline']
         ## here we execute
         print "executing with pid:",message['pid']
-        os.system ('ssh -t '+target+'  "cd '+pwd+'; '+command+' "')
-        
+
+        signal.signal(signal.SIGTERM, self.receive_kill)
+        self.remoteprocess= subprocess.Popen(['ssh','-t', target,"cd '+pwd+'; '+command+' "])
+        self.remoteprocess.wait()
+
         print "done"
         ### now we notify done.
 
