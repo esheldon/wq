@@ -156,7 +156,13 @@ class Cluster:
         tot=0
         used=0
         use=[]
-        for h in self.nodes:
+        nds=[]
+        nodes=self.nodes.keys()
+        nodes.sort()
+        for h in nodes:
+            nds.append({'hostname':h,'used':self.nodes[h].used,'ncores':self.nodes[h].ncores, \
+                       'mem':self.nodes[h].mem, 'grps':self.nodes[h].grps})
+            
             tot+=self.nodes[h].ncores
             used+=self.nodes[h].used
             if (self.nodes[h].used>0):
@@ -165,7 +171,7 @@ class Cluster:
         res['used']=used
         res['ncores']=tot
         res['nnodes']=len(self.nodes)
-        res['use']=use
+        res['nodes']=nds
         return res
 
 
@@ -196,6 +202,14 @@ class Job(dict):
             self['reason'] = ''
 
 
+        self['priority'] = self['require'].get('priority','med')
+        if self['priority'] not in ['low','med','high']:
+            self['status'] = 'nevermatch'
+            self['reason']="priority must be on of:  low, med, high."
+
+        self['time_sub'] = time.time()
+
+
     def match(self, cluster):
         if self['status'] == 'nevermatch':
             return
@@ -204,7 +218,6 @@ class Job(dict):
 
         # default to bycore
         submit_mode = self['require'].get('mode','bycore')
-
         # can also add reasons from the match methods
         # later
 
@@ -222,10 +235,14 @@ class Job(dict):
             pmatch=False ## unknown request never mathces
             reason="bad submit_mode '%s'" % submit_mode
 
+
+
         if pmatch:
             if match:
                 self['hosts']=hosts
                 cluster.Reserve(hosts)
+                self['time_run'] = time.time()
+
                 self['status']='run'
             else:
                  self['status']='wait'
@@ -531,7 +548,7 @@ class JobQueue:
         else:
             self._process_command(message)
 
-    def refresh(self, purge=False):
+    def refresh(self):
         """
         refresh the job list
 
@@ -544,19 +561,22 @@ class JobQueue:
 
         """
 
-        for i,job in enumerate(self.queue):
-            # job was told to run.
-            # see if the pid is still running, if not remove the job
-            if not self._pid_exists(job['pid']):
-                print 'removing job %s, pid no longer valid'
-                self.queue[i].unmatch(self.cluster)
-                del self.queue[i]
-            elif job['status'] != 'run':
-                # we if we can now run the job
-                job.match(self.cluster)
-                if job['status'] == 'run':
-                    # *now* send a signal to start it
-                    self._signal_start(job['pid'])
+        for priority in ['high','med','low']:
+            for i,job in enumerate(self.queue):
+                if (job['priority']!=priority):
+                    continue
+                # job was told to run.
+                # see if the pid is still running, if not remove the job
+                if not self._pid_exists(job['pid']):
+                    print 'removing job %s, pid no longer valid'
+                    self.queue[i].unmatch(self.cluster)
+                    del self.queue[i]
+                elif job['status'] != 'run':
+                    # see if we can now run the job
+                    job.match(self.cluster)
+                    if job['status'] == 'run':
+                        # *now* send a signal to start it
+                        self._signal_start(job['pid'])
 
 
     def get_response(self):
@@ -638,11 +658,27 @@ class JobQueue:
 
     def _process_remove_request(self, message):
         pid = message.get('pid',None)
+        user = message.get('user',None)
         if pid is None:
             self.response['error'] = "remove requests must contain the 'pid' field"
             return
+        if user is None:
+            self.response['error'] = "remove requests must contain the 'user' field"
+            return
+            
+        found = False
+        for i,job in enumerate(self.queue):
+            if job['pid'] == pid:
+                ## we don't actually remove anything, hope refresh will do it.
+                if (job['user']!=user and user!='root'):
+                    self.response['error']='PID belongs to user '+job['pid'].user
+                self.response['response'] = 'OK'
+                self.response['pidtokill'] = pid
+                found=True
+                break
+        if not found:
+            self.response['error'] = 'pid %s not found' % pid
 
-        self._remove(pid,force=True)
 
     def _process_notification(self, message):
         notifi = message.get('notification',None)
@@ -663,27 +699,19 @@ class JobQueue:
             self.response['error'] = "Only support 'done' or 'refresh' notifications for now"
             return
 
-    def _remove(self, pid, force=False):
+    def _remove(self, pid):
         found = False
         for i,job in enumerate(self.queue):
             if job['pid'] == pid:
-                if (force):
-                    self._signal_terminate(pid)
                 job.unmatch(self.cluster)
                 del self.queue[i]
                 self.response['response'] = 'OK'
                 found=True
                 break
+
         if not found:
             self.response['error'] = 'pid %s not found' % pid
 
-    def _signal_terminate(self,pid):
-        if self._pid_exists(pid):
-            import time
-            os.kill(pid,signal.SIGTERM)
-            time.sleep (2) ## sleep  a bit
-            if (self._pid_exists(pid)):
-                os.kill(pid,signal.SIGKILL)
 
     def _signal_start(self, pid):
         import signal

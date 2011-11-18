@@ -23,6 +23,7 @@ import json
 import os
 import signal 
 import wq
+import time
 
 from optparse import OptionParser
 
@@ -88,7 +89,7 @@ class Lister(dict):
             hname='hosts'
         else:
             hname='nhosts'
-        names = ['pid','user','status','ncores',hname,'command']
+        names = ['pid','user','status','priority','ncores',hname,'command','time_sub','time_run']
 
         lens={}
         for k in names:
@@ -97,6 +98,7 @@ class Lister(dict):
         nrun=0
         nwait=0
         lines = []
+        timenow = time.time()
         for r in resp['response']:
 
             if (self.user is None) or (r['user'] in self.user):
@@ -108,9 +110,12 @@ class Lister(dict):
                 this={}
                 this['pid'] = r['pid']
                 this['user'] = r['user']
+                this['priority'] = r['priority']
                 this['status'] = self._get_status(r)
                 this['ncores'] = self._get_ncores(r)
                 this['command'] = self._get_command(r)
+                this['time_sub'] = self._get_time_in(r,timenow)
+                this['time_run'] = self._get_time_run(r,timenow)
 
                 if self.full:
                     this['hosts'] = self._get_hosts(r)
@@ -132,7 +137,7 @@ class Lister(dict):
         # this is the header for each column
         if len(lines) > 0:
             print fmt % {'pid':'Pid','user':'User',
-                         'status':'Status', 'ncores':'Ncores',hname:hname,'command':'Command'}
+                         'status':'Status', 'priority':'Priority', 'ncores':'Ncores',hname:hname,'command':'Command','time_sub':'t_in','time_run':'t_run'}
         for l in lines:
             print fmt % l
 
@@ -147,6 +152,38 @@ class Lister(dict):
             return len(r['hosts'])
         else:
             return '-'
+
+    def _time_diff(self,dt):
+        ## surprisingly enough, nothing like this in date or time modules
+        ds = int (dt)
+        nd = int(ds/(24*60*60))
+        ds -= nd*24*60*60
+        nh = int (ds/(3600))
+        ds -= nh*3600
+        nm = int (ds/60)
+        ds -= nm*60
+        ns = ds
+        r=''
+        if (nd>0):
+            r+=str(nd)+'d'
+        if (nh>0):
+            r+=str(nh)+'h'
+        if (nm>0):
+            r+=str(nm)+'m'
+        r+=str(ns)+'s'
+        return r
+                  
+
+
+    def _get_time_in(self, r,timenow):
+        return self._time_diff(timenow-r['time_sub'])
+
+    def _get_time_run(self, r,timenow):
+        if r['status'] == 'run':
+            return self._time_diff(timenow-r['time_run'])
+        else:
+            return '-'
+
 
     def _get_hosts(self, r):
         if r['status'] != 'run':
@@ -206,8 +243,16 @@ class Stats(dict):
 
         resp = send_message(message)
 
-        print 'cluster status: make this nicer'
-        print resp['response']
+        print 'Cluster status:\n'
+        status=resp['response']
+        nodes=status['nodes']
+        for d in nodes:
+            print '['+'*'*int(d['used'])+'.'*int(d['ncores'])+'] ',
+            print d['hostname']+'              mem='+str(d['mem'])+' grps='+','.join(d['grps'])
+
+        print '\n Used cores : %i/%i (%3.1f%%)'%(status['used'],status['ncores'],100.*status['used']/status['ncores'])
+
+
 
 class Refresher(dict):
     """
@@ -246,10 +291,43 @@ class Remover(dict):
         message={}
         message['command'] = 'rm'
         message['pid'] = self.pid
+        message['user'] = os.environ['USER']
 
         resp = send_message(message)
 
-        print resp
+        if resp['response']=='OK':
+            if 'pidtokill' not in resp:
+                print "Internal error, server shuold return pidtokill."
+                sys.exit(1)
+            pidtokill = resp['pidtokill']
+            os.kill(pidtokill,signal.SIGTERM)
+            time.sleep (0.1) ## sleep  a bit
+            cc=0
+            while (self._pid_exists(pidtokill) and (cc<100)): #see when it disappears, up to 10sec
+                time.sleep(0.1)
+                cc+=1
+            if (self._pid_exists(pidtokill)):
+                #bastard wouldn't die
+                os.kill(pid,signal.SIGKILL)
+                time.sleep(1)
+            ## Now refresh to remove it from queue
+            message={}
+            message['command'] = 'refresh'
+            resp = send_message(message)
+
+        else:
+            print "Cannot remove, reason=", resp['error']
+
+    def _pid_exists(self, pid):        
+        """ Check For the existence of a unix pid. """
+        try:
+            # this doesn't actually kill the job, it does nothing if the pid
+            # exists, if doesn't exist raises OSError
+            os.kill(pid, 0)
+        except OSError:
+            return False
+        else:
+            return True
 
 
 
