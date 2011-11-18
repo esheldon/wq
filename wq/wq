@@ -492,7 +492,12 @@ def send_message(message):
     try:
         sock.send(json.dumps(message))
 
-        data = sock.recv(pars['max_buffsize'])
+        tdata = sock.recv(pars['max_buffsize'])
+        data = tdata
+        while len(tdata) == pars['max_buffsize']:
+            tdata = sock.recv(pars['max_buffsize'])
+            data += tdata
+
 
         #print 'data from server:',data
         try:

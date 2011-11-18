@@ -66,7 +66,12 @@ class Server:
             while True:
 
                 conn, addr = self.wait_for_connection()
-                data = conn.recv(MAX_BUFFSIZE)
+
+                tdata = conn.recv(MAX_BUFFSIZE)
+                data=tdata
+                while len(tdata) == MAX_BUFFSIZE:
+                    tdata = sock.recv(MAX_BUFFSIZE)
+                    data += tdata
 
                 if not data: 
                     break
