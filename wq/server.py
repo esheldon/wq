@@ -693,7 +693,9 @@ class JobQueue:
             if job['pid'] == pid:
                 ## we don't actually remove anything, hope refresh will do it.
                 if (job['user']!=user and user!='root'):
-                    self.response['error']='PID belongs to user '+job['pid'].user
+                    self.response['error']='PID belongs to user '+job['user']
+                    return
+
                 self.response['response'] = 'OK'
                 self.response['pidtokill'] = pid
                 found=True
