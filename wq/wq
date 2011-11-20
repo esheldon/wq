@@ -35,6 +35,8 @@ pars={'host':'',      # Symbolic name meaning all available interfaces
       'port':wq.DEFAULT_PORT ,
       'max_buffsize':wq.MAX_BUFFSIZE}
 
+# note this is different from the timeout for the server.
+SOCK_TIMEOUT = 45.0
 
 class ServerWrapper:
     """
@@ -86,7 +88,6 @@ class Lister(dict):
     def execute(self):
         message={}
         message['command'] = 'ls'
-
         resp = send_message(message)
 
 
@@ -279,12 +280,14 @@ class Remover(dict):
 
     def __init__(self, args):
         parser=OptionParser(Remover.__doc__)
+        parser.add_option("-a", "--all", action="store_true",
+                          help="remove all jobs for current user")
         options, args = parser.parse_args(args)
-        if len(args) < 1:
-            parser.print_help()
-            sys.exit(1)
 
-        self.pid = int(args[0])
+        if options.all:
+            self.pid='all'
+        else:
+            self.pid = int(args[0])
 
     def execute(self):
         message={}
@@ -295,20 +298,25 @@ class Remover(dict):
         resp = send_message(message)
 
         if resp['response']=='OK':
-            if 'pidtokill' not in resp:
-                print "Internal error, server shuold return pidtokill."
+            if 'pids_to_kill' not in resp:
+                print "Internal error, server shuold return pids_to_kill."
                 sys.exit(1)
-            pidtokill = resp['pidtokill']
-            os.kill(pidtokill,signal.SIGTERM)
-            time.sleep (0.1) ## sleep  a bit
-            cc=0
-            while (self._pid_exists(pidtokill) and (cc<100)): #see when it disappears, up to 10sec
-                time.sleep(0.1)
-                cc+=1
-            if (self._pid_exists(pidtokill)):
-                #bastard wouldn't die
-                os.kill(pid,signal.SIGKILL)
-                time.sleep(1)
+
+            # this is always a list, for when we do "wq rm all"
+            pids_to_kill = resp['pids_to_kill']
+            for pidtokill in pids_to_kill:
+
+                os.kill(pidtokill,signal.SIGTERM)
+                time.sleep (0.1) ## sleep  a bit
+                cc=0
+                while (self._pid_exists(pidtokill) and (cc<100)): #see when it disappears, up to 10sec
+                    time.sleep(0.1)
+                    cc+=1
+                if (self._pid_exists(pidtokill)):
+                    #bastard wouldn't die
+                    os.kill(pid,signal.SIGKILL)
+                    time.sleep(1)
+
             ## Now refresh to remove it from queue
             message={}
             message['command'] = 'refresh'
@@ -426,6 +434,7 @@ class Submitter(dict):
 
         self.message['command']='notify'
         self.message['notification']='done'
+        #sres = send_message(self.message, timeout=SOCK_TIMEOUT, crash_on_timeout=True)
         sres = send_message(self.message)
         print sres
         exit(0)
@@ -507,34 +516,67 @@ class Submitter(dict):
         print "done"
         message['command']='notify'
         message['notification']='done'
-        sres = send_message(message)
+
+        # we want to die if the notification fails so the server will see
+        # the missing pid
+        #sres = send_message(self.message, timeout=SOCK_TIMEOUT, crash_on_timeout=True)
+        sres = send_message(self.message)
         print sres
-                             
+
+def socket_connect(sock, conninfo, crash_on_timeout=False):
+    # crash will only happen if timeouts have been enabled, otherwise we just
+    # wait
+    if crash_on_timeout:
+        sock.connect(conninfo)
+    else:
+        while True:
+            try:
+                sock.connect(conninfo)
+                break
+            except socket.timeout:
+                pass
+
+def socket_send(sock, mess):
+    """
+    Need to do this with timeouts, which are non-blocking under the hood
+
+    hmm... is this going to max the cpu if we can't get through right away?
+    """
+    reslen=len(mess)
+    tnsent=conn.send(mess)
+    nsent = tnsent
+    if nsent < reslen:
+        tnsent=conn.send(mess[nsent:])
+        nsent += tnsent
 
 
+def send_message(message, timeout=None, crash_on_timeout=False):
+    if len(message) == 0:
+        raise ValueError("message must have len > 0")
 
-def send_message(message):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect((pars['host'], pars['port']))
+    # make sure to set timeout *before* calling connect()
+    if timeout is not None:
+        sock.settimeout(timeout)
 
+    conninfo = (pars['host'], pars['port'])
+    socket_connect(sock, conninfo, crash_on_timeout=crash_on_timeout)
+
+    rdict=None
     try:
-        sock.send(json.dumps(message))
+        jmess=json.dumps(message)
 
-        tdata = sock.recv(pars['max_buffsize'])
-        data = tdata
-        while len(tdata) == pars['max_buffsize']:
-            tdata = sock.recv(pars['max_buffsize'])
-            data += tdata
+        wq.server.socket_send(sock, jmess)
+        data = wq.server.socket_recieve(sock, pars['max_buffsize'])
 
+        sock.close()
 
-        #print 'data from server:',data
         try:
             rdict = json.loads(data)
         except:
             print 'json err:'
             print data
             sys.exit(1)
-        sock.close()
 
         if 'error' in rdict:
             raise RuntimeError("Error reported by server: %s" % rdict['error'])
@@ -542,12 +584,14 @@ def send_message(message):
         if 'response' not in rdict:
             raise RuntimeError("Internal error. Expected a response and got screwed.")
 
-    except RuntimeError as e:
-        sock.close()
-        print e
-        sys.exit(1)
+    except:
+        es=sys.exc_info()
+        print 'caught exception type:', es[0],'details:',es[1]
     finally:
         sock.close()
+
+    if rdict is None:
+        sys.exit(1)
 
     return rdict
 

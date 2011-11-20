@@ -40,8 +40,31 @@ def print_stat(status):
 
     print '\n Used cores : %i/%i (%3.1f%%)'%(status['used'],status['ncores'],100.*status['used']/status['ncores'])
 
+def socket_send(conn, mess):
+    """
+    Send a message using a socket or connection, trying until all data is sent.
 
+    hmm... is this going to max the cpu if we can't get through right away?
+    """
+    reslen=len(mess)
+    tnsent=conn.send(mess)
+    nsent = tnsent
+    if nsent < reslen:
+        tnsent=conn.send(mess[nsent:])
+        nsent += tnsent
 
+def socket_recieve(conn, buffsize):
+    """
+    Recieve all data from a socket or connection, dealing with buffers.
+    """
+    tdata = conn.recv(buffsize)
+    data=tdata
+    while len(tdata) == buffsize:
+        tdata = conn.recv(buffsize)
+        data += tdata
+
+    return data
+ 
 class Server:
     def __init__(self, cluster_file, port=None):
         self.cluster_file = cluster_file
@@ -83,12 +106,9 @@ class Server:
 
                 conn, addr = self.wait_for_connection()
 
-                tdata = conn.recv(MAX_BUFFSIZE)
-                data=tdata
-                while len(tdata) == MAX_BUFFSIZE:
-                    tdata = sock.recv(MAX_BUFFSIZE)
-                    data += tdata
+                data = socket_recieve(conn, MAX_BUFFSIZE)
 
+                # hmmm.. empty message, should we really dump out?
                 if not data: 
                     break
 
@@ -110,14 +130,20 @@ class Server:
                     err = {"error":"server error creating JSON response from '%s'" % ret}
                     json_response = json.dumps(err)
 
+                # timeout mode is non-blocking under the hood, can't use
+                # sendall but we wouldn't want the exception possibility anyway
                 print 'response:',json_response
-                conn.send(json_response)
+                socket_send(conn, json_response)
 
+                print 'closing conn'
                 conn.close()
                 conn=None
 
         except KeyboardInterrupt:
             pass
+        except:
+            es=sys.exc_info()
+            print 'caught exception type:', es[0],'details:',es[1]
         finally:
             print 'shutdown'
             self.sock.shutdown(socket.SHUT_RDWR)
@@ -297,7 +323,7 @@ class Job(dict):
 
         for h in cluster.nodes:
             nd = cluster.nodes[h]
-            print "node = ",h
+            #print "node = ",h
 
             ## is this node actually what we want
             ing = self._get_req_list(reqs, 'group')
@@ -320,14 +346,14 @@ class Job(dict):
                 if (not ok):
                     continue ### not in the group
 
-            print "nd.nc=",nd.ncores
+            #print "nd.nc=",nd.ncores
             if (nd.ncores>=Np):
                 pmatch=True
             else:
                 Np-=nd.ncores
 
             nfree= nd.ncores-nd.used
-            print "nfree=",nfree, N
+            #print "nfree=",nfree, N
             if (nfree>=N):
                 for x in xrange(N):
                     hosts.append(h)
@@ -679,6 +705,8 @@ class JobQueue:
         self.response['response'] = self.cluster.Status()
 
     def _process_remove_request(self, message):
+        self.refresh()
+
         pid = message.get('pid',None)
         user = message.get('user',None)
         if pid is None:
@@ -688,20 +716,41 @@ class JobQueue:
             self.response['error'] = "remove requests must contain the 'user' field"
             return
             
-        found = False
-        for i,job in enumerate(self.queue):
-            if job['pid'] == pid:
-                ## we don't actually remove anything, hope refresh will do it.
-                if (job['user']!=user and user!='root'):
-                    self.response['error']='PID belongs to user '+job['user']
-                    return
+        if pid == 'all':
+            self._process_remove_all_request(user)
+        else:
+            found = False
+            for i,job in enumerate(self.queue):
+                if job['pid'] == pid:
+                    ## we don't actually remove anything, hope refresh will do it.
+                    if (job['user']!=user and user!='root'):
+                        self.response['error']='PID belongs to user '+job['user']
+                        return
 
-                self.response['response'] = 'OK'
-                self.response['pidtokill'] = pid
-                found=True
-                break
-        if not found:
-            self.response['error'] = 'pid %s not found' % pid
+                    self.response['response'] = 'OK'
+                    self.response['pids_to_kill'] = [pid]
+                    found=True
+                    break
+            if not found:
+                self.response['error'] = 'pid %s not found' % pid
+
+    def _process_remove_all_request(self, user):
+        pids_to_kill=[]
+        for i,job in enumerate(self.queue):
+            if job['user'] == user:
+                # just drop them from the queue, and append
+                # to return list of pids to kill
+                pids_to_kill.append(job['pid'])
+                job.unmatch(self.cluster)
+
+        if len(pids_to_kill) == 0:
+            self.response['error'] = 'No jobs for user:',user,'in queue'
+        else:
+            # rebuild the queue without these items
+            self.queue = [j for j in self.queue if j['pid'] not in pids_to_kill]
+
+            self.response['response'] = 'OK'
+            self.response['pids_to_kill'] = pids_to_kill
 
 
     def _process_notification(self, message):
@@ -715,7 +764,7 @@ class JobQueue:
             if pid is None:
                 self.response['error'] = "remove requests must contain the 'pid' field"
                 return
-            self._remove(pid)
+            self._remove_from_notify(pid)
             self.refresh()
         elif notifi == 'refresh':
             self.refresh()
@@ -723,7 +772,11 @@ class JobQueue:
             self.response['error'] = "Only support 'done' or 'refresh' notifications for now"
             return
 
-    def _remove(self, pid):
+    def _remove_from_notify(self, pid):
+        """
+        this is when the user has notified us the job is done.  we don't
+        send a kill message back
+        """
         found = False
         for i,job in enumerate(self.queue):
             if job['pid'] == pid:
@@ -735,6 +788,7 @@ class JobQueue:
 
         if not found:
             self.response['error'] = 'pid %s not found' % pid
+
 
 
     def _signal_start(self, pid):
