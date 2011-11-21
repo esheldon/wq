@@ -277,7 +277,8 @@ class Job(dict):
 
     def UnSpool(self):
         if (self['spool_fname']):
-            os.remove(self['spool_fname'])
+            if os.path.exists(self['spool_fname']):
+                os.remove(self['spool_fname'])
             self['spool_fname']=None
     
 

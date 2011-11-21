@@ -8,7 +8,7 @@ options for each command
     sub:        Submit a job.
     ls:         Print the job listing
     stat:       Get the status of the cluster/queue.
-    rm:         Remove a job.
+    rm:         Remove a job or all jobs for a user.
     refresh:    Force a refresh of the job queue.
 
 To get help on each command, use -h, for example
