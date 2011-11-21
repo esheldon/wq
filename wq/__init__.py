@@ -8,5 +8,6 @@ from .server import DEFAULT_MAX_BUFFSIZE
 from .server import DEFAULT_SOCK_TIMEOUT
 from .server import DEFAULT_WAIT_SLEEP
 from .server import DEFAULT_SPOOL_DIR
+from .server import PRIORITY_LIST
 
 

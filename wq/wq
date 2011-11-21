@@ -528,7 +528,7 @@ class Submitter(dict):
             while True:
                 time.sleep(wsleep)
                 try:
-                    print "trying:",fname
+                    #print "trying:",fname
                     open(fname)
                     print "ok"
                     break

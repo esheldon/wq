@@ -27,6 +27,8 @@ DEFAULT_SOCK_TIMEOUT = 30.0
 DEFAULT_WAIT_SLEEP = 10.0
 DEFAULT_SPOOL_DIR = "~/wqspool/"
 
+PRIORITY_LIST= ['block','low','med','high']
+
 def print_stat(status):
     """
     input status is the result of cluster.Status
@@ -279,9 +281,9 @@ class Job(dict):
         self.wait_sleep = keys.get('wait_sleep',DEFAULT_WAIT_SLEEP)
 
         self['priority'] = self['require'].get('priority','med')
-        if self['priority'] not in ['low','med','high']:
+        if self['priority'] not in PRIORITY_LIST: 
             self['status'] = 'nevermatch'
-            self['reason']="priority must be on of:  low, med, high."
+            self['reason']="priority must be on of: " + ",".join(PRIORITY_LIST)
 
         self['time_sub'] = time.time()
         self['spool_fname'] = None
@@ -693,9 +695,10 @@ class JobQueue:
 
         """
 
-        for priority in ['high','med','low']:
+        block_pid=None
+        for priority in PRIORITY_LIST:
             for i,job in enumerate(self.queue):
-                if (job['priority']!=priority):
+                if job['priority'] != priority:
                     continue
                 # job was told to run.
                 # see if the pid is still running, if not remove the job
@@ -704,9 +707,21 @@ class JobQueue:
                     self.queue[i].unmatch(self.cluster)
                     del self.queue[i]
                 elif job['status'] != 'run':
-                    # see if we can now run the job
-                    job.match(self.cluster)
-                    ## signal send automatically by spool.
+                    # only try to run jobs if we haven'te come up against a
+                    # blocking job
+                    if block_pid is None:
+                        # see if we can now run the job
+                        job.match(self.cluster)
+                        ## signal send automatically by spool.
+
+                        # special case of blocking: if we hit a blocking
+                        # job that is not running, we will not let
+                        # any others run
+                        if priority == 'block' and job['status'] == 'wait':
+                            block_pid = job['pid']
+                    else:
+                        # all jobs get reason: block 
+                        job['reason'] = 'waiting for block from job %s' % block_pid
 
     def get_response(self):
         return self.response
@@ -731,6 +746,7 @@ class JobQueue:
             self.response['response'] = 'OK'
         else:
             self.response['error'] = "only support 'sub' and 'list' commands"
+
 
     def _process_submit_request(self, message):
         pid = message.get('pid')
