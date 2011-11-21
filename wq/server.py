@@ -396,7 +396,7 @@ class Job(dict):
         if (not pmatch):
             reason = 'Not enough total cores satistifying condition.'
         elif (not match):
-            resont = 'Not enough free cores.'
+            reason = 'Not enough free cores.'
     
         print pmatch, match, hosts, reason
         return pmatch, match, hosts, reason
@@ -457,7 +457,7 @@ class Job(dict):
         if (not pmatch):
             reason = 'Not a node with that many cores.'
         elif (not match):
-            resont = 'Not enough free cores on any one node.'
+            reason = 'Not enough free cores on any one node.'
     
         return pmatch, match, hosts, reason
 
@@ -519,7 +519,7 @@ class Job(dict):
         if (not pmatch):
             reason = 'Not enough total cores satistifying condition.'
         elif (not match):
-            resont = 'Not enough free cores.'
+            reason = 'Not enough free cores.'
     
 
         return pmatch, match, hosts, reason
