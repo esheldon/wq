@@ -174,12 +174,13 @@ Getting Statistics For the Cluster and Queue
 
 To get a job listing us "ls".  Send -f or --full to see a full list of
 nodes for each job and the full command line. Send -u/--user to restrict
-the job list to a particular user.
+the job list to a particular user or list of users (comma separated).
 
 
     wq ls
     wq ls -f
-    wq ls -u username --full
+    wq ls -u username
+    wq ls -u user1,user2 -f
 
 Here is an example of a normal listing
 
@@ -199,7 +200,8 @@ status.
 
 For each node, the usage is displayed using an asterisk * for used cores and a
 dot . for unused cores.  for example [***....] means three used and 4 unused
-cores.  Also displayed is the memory available and the groups for each host.
+cores.  Also displayed is the memory available in gigabytes and the groups for
+each host.
 
 Here is an example
 
@@ -252,8 +254,13 @@ The format is
 
 
 The mem is in gigabytes, and can be floating point.  The groups are optional
-and comma separated.  You can change the port for sockets using -p; the clients
-will also need to use that port.
+and comma separated.  You can change the port for sockets using -p; 
+
+    wq -p portnum serve descfile
+
+the clients will also need to use that port.
+
+    wq -p sub jobfile
 
 
 Installation
