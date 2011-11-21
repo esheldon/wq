@@ -19,24 +19,6 @@ The only queue currently supported is first in first out (FIFO), with
 priorities.  Another could be plugged in easily.
 
 
-Installation
-------------
-
-### Dependencies
-
-You need a fairly recent python and pyyaml <http://pyyaml.org/>
-
-### Install
-
-Get the source, untar it, cd into the created directory, and type this
-to install into the "usual" place
-
-    python setup.py install --prefix=/some/path
-
-To install into a particular prefix
-
-    python setup.py install --prefix=/some/path
-
 
 The "wq" Script
 ---------------
@@ -252,4 +234,24 @@ The format is
 The mem is in gigabytes, and can be floating point.  The labels are optional
 and comma separated.  You can change the port for sockets using -p; the clients
 will also need to use that port.
+
+
+Installation
+------------
+
+### Dependencies
+
+You need a fairly recent python and pyyaml <http://pyyaml.org/>
+
+### Install
+
+Get the source, untar it, cd into the created directory, and type this
+to install into the "usual" place
+
+    python setup.py install --prefix=/some/path
+
+To install into a particular prefix
+
+    python setup.py install --prefix=/some/path
+
 
