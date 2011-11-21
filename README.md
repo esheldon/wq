@@ -18,14 +18,16 @@ jobs, it is appropriate to use "nohup" and put the client in the background.
 The only queue currently supported is first in first out (FIFO), with
 priorities.  Another could be plugged in easily.
 
-Dependencies
-------------
-
-You need a fairly recent python and a yaml parser; wq assumes this works
-"import yaml".
 
 Installation
 ------------
+
+### Dependencies
+
+You need a fairly recent python and a yaml parser; wq assumes this works
+"import yaml".  The authors are using pyyaml <http://pyyaml.org/>
+
+### Install
 
 Get the source, untar it, cd into the created directory, and type this
 to install into the "usual" place
