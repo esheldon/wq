@@ -63,6 +63,27 @@ section for more details.  You can also send requirements using -r/--require
 Requirements sent using -r will over-ride those in the job file.  For
 a list of available requirements fields, see the Requirements sub-section.
 
+### Putting Jobs in the Background
+
+You may want to submit a large number of jobs at once.  This is most convenient
+if the jobs go into the background.  The best way to do this is using
+nohub and redirecting the output to a file.
+
+    nohub wq sub job_file > jobfile.wqlog 2> jobfile.wqerr &
+
+You should redirect the output becuase otherwise it will just go to a file
+called nohup.out in your current working directory. You can of course put
+both stderr/stdout in the same file using &> jobfile.wqlog &
+
+### Getting an interactive shell on a worker node.
+
+For an interactive shell, just use "bash" or your favorite shell as the
+command.  If you need the display for graphics, plotting, etc. make sure
+to send the X requirement.  e.g.
+
+    wq sub -c bash
+    wq sub -r "X:1" -c bash
+
 ###  Job Files
 
 The job files and requirements are all in YAML
@@ -118,6 +139,7 @@ is the full list
 * group - Select cores or nodes from the specified group or groups.  This can be a scalar or list
 * notgroup - Select cores or nodes from machines not in the specified group or groups.
 * min_cores - Limit to nodes with at least this many cores.  Currently only applies when mode is *bynode* (should this work for bycore selections?).
+* X - This determines of X forwarding is used, default is False. For yes use true,1 for no use false,0
 
 Here is a full, commented example
 
@@ -154,6 +176,14 @@ the job list to a particular user.
     wq ls -f
     wq ls -u username --full
 
+Here is an example of a normal listing
+
+    Pid   User Status Priority Ncores Nhosts Command t_in      t_run    
+    2530  anze R      med      132    11     source  12h50m27s 12h50m27s
+    3246  anze R      med      104    13     source  12h24m28s 12h24m28s
+    18743 anze W      med      -      -      source  29m52s    -        
+    Jobs: Running: 2 Waiting: 1
+
 ### Cluster and Queue Status
 
 Use the "stat" command to get a summary of the cluster usage and queue
@@ -165,6 +195,22 @@ For each node, the usage is displayed using an asterisk * for used cores and a
 dot . for unused cores.  for example [***....] means three used and 4 unused
 cores.  Also displayed is the memory available and the labels/groups for each
 host.
+
+Here is an example
+
+    usage           host      mem groups    
+    [************]  astro0001  32 gen4,gen45
+    [************]  astro0004  32 gen4,gen45
+    [********....]  astro0010  48 gen5,gen45
+    [............]  astro0011  48 gen5,gen45
+    [....]          astro0016   8 gen1,slow 
+    [*...]          astro0017   8 gen2,slow 
+    [....]          astro0018   8 gen2,slow 
+    [....]          astro0020   8 gen2,slow 
+    [********]      astro0031  32 gen3      
+    [****....]      astro0032  32 gen3      
+    [........]      astro0033  32 gen3      
+
 
 Refreshing the Queue
 --------------------
