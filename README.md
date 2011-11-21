@@ -181,7 +181,6 @@ Here is an example of a normal listing
     2530  anze R      med      132    11     source  12h50m27s 12h50m27s
     3246  anze R      med      104    13     source  12h24m28s 12h24m28s
     18743 anze W      med      -      -      source  29m52s    -        
-    Jobs: Running: 2 Waiting: 1
     Jobs: 3 Running: 2 Waiting: 1
 
 
