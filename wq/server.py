@@ -323,8 +323,8 @@ class Job(dict):
             pmatch, match, hosts, reason = self._match_bynode(cluster)
         elif (submit_mode=='byhost'):
             pmatch, match, hosts,reason = self._match_byhost(cluster)
-        elif (submit_mode=='bygrp'):
-            pmatch, match, hosts,reason = self._match_bygrp(cluster)
+        elif (submit_mode=='bygroup'):
+            pmatch, match, hosts,reason = self._match_bygroup(cluster)
         else:
             pmatch=False ## unknown request never mathces
             reason="bad submit_mode '%s'" % submit_mode
@@ -581,7 +581,7 @@ class Job(dict):
         return pmatch, match, hosts, reason
 
 
-    def _match_bygrp(self, cluster):
+    def _match_bygroup(self, cluster):
 
         pmatch=False
         match=False

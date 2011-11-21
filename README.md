@@ -18,6 +18,11 @@ jobs, it is appropriate to use "nohup" and put the client in the background.
 The only queue currently supported is first in first out (FIFO), with
 priorities.  Another could be plugged in easily.
 
+Dependencies
+------------
+
+You need a fairly recent python and a yaml parser; wq assumes works "import yaml".
+
 Installation
 ------------
 
@@ -29,6 +34,7 @@ to install into the "usual" place
 To install into a particular prefix
 
     python setup.py install --prefix=/some/path
+
 
 The "wq" Script
 ---------------
@@ -60,8 +66,8 @@ commands as an argument
     wq sub job_file 
     wq sub -c "commands"
 
-The job file contains a "command" and a set of requirements.  You can also
-send requirements using -r/--require
+The job file contains a "command" and a set of requirements; see the Job File
+section for more details.  You can also send requirements using -r/--require
 
     
     wq sub -r "requirements" job_file
@@ -69,3 +75,48 @@ send requirements using -r/--require
 
 Requirements sent using -r will over-ride those in the job file.  For
 a list of available requirements fields, see the Requirements section.
+
+Job Files
+---------
+
+The job files and requirements all to [YAML
+syntax](http://en.wikipedia.org/wiki/YAML).  For example, to run the command
+"script" on a single core, this would be the job file (without indentation)
+
+    command: script
+
+To do the same from the command line
+
+    wq sub -c script
+
+You can also put requirements in the job file.  For example, to grab 3 cores
+
+    command: script
+    N: 3
+
+To only use nodes from a particular group, add a groups list
+
+    group: [gen1, gen3]
+
+or using note-taking notation
+
+    group:
+        - gen1
+        - gen2
+
+See the Requirements section for a full list of requirements
+
+Requirements
+------------
+
+By default, a job is simply assigned a single core on the first available node.
+You can use requirements to change what nodes are selected for your job. The following
+is the full list
+
+* mode - The mode of node selection.  Available modes are
+** bycore
+** bycore1
+** bynode
+** byhost
+** bygroup
+        
