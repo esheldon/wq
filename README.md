@@ -134,3 +134,23 @@ is the full list
 * group - Select cores or nodes from the specified group or groups.  This can be a scalar or list
 * notgroup - Select cores or nodes from machines not in the specified group or groups.
 * min_cores - Limit to nodes with at least this many cores.  Currently only applies when mode is *bynode* (should this work for bycore selections?).
+
+Here is a full, commented example
+
+    # this is the command to be run.
+    command: mycommand
+
+    # this is the type of node/host selection. bynode means select entire nodes.
+    mode: bynode
+
+    # Since the mode is bynode, this means 5 full nodes
+    N: 5
+
+    # Select from this group(s)
+    group: gen1
+
+    # Do not select from this set of groups
+    notgroup: [slow,crappy]
+
+    # require at least this many cores
+    min_cores: 8
