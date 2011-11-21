@@ -63,9 +63,9 @@ section for more details.  You can also send requirements using -r/--require
 Requirements sent using -r will over-ride those in the job file.  For
 a list of available requirements fields, see the Requirements sub-section.
 
-### 
+###  Job Files
 
-The job files and requirements all to YAML
+The job files and requirements are all in YAML
 syntax <http://en.wikipedia.org/wiki/YAML>.  For example, to run the command
 "script" on a single core, this would be the job file (without indentation)
 
