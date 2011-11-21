@@ -114,9 +114,12 @@ You can use requirements to change what nodes are selected for your job. The fol
 is the full list
 
 * mode - The mode of node selection.  Available modes are
- * bycore
- * bycore1
- * bynode
- * byhost
- * bygroup
-        
+ * bycore - Select single cores.  Modifiers like *N* refer to number of cores.
+ * bycore1 - Select single cores in a single node.
+ * bynode - Select full nodes.  Modifiers like *N* refer to number of nodes.
+ * byhost - Select a particular host by name.  Modifiers like *N* refer to number of cores.
+ * bygroup - Select **all** the nodes from particular groups; different from the *group* requirement.
+* N - The number of nodes or cores, depending on the mode.
+* group - Select cores or nodes from the specified group or groups.  This can be a scalar or list
+* notgroup - Select cores or nodes from machines not in the specified group or groups.
+* min_cores - Limit to nodes with at least this many cores.  Currently only applies when mode is *bynode* (should this work for bycore selections?).
