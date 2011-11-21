@@ -114,9 +114,9 @@ You can use requirements to change what nodes are selected for your job. The fol
 is the full list
 
 * mode - The mode of node selection.  Available modes are
-** bycore
-** bycore1
-** bynode
-** byhost
-** bygroup
+ * bycore
+ * bycore1
+ * bynode
+ * byhost
+ * bygroup
         
