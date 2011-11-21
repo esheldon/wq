@@ -17,10 +17,10 @@ jobs, it is appropriate to use "nohup" and put the client in the background.
 
 The only queue currently supported is a very simple matching queue with
 priorities.  This is very simple: jobs are put in the queue in order they
-arrive.  Each time the queue is refreshed, the first one that can run will run.
-It would be easy to convert this to first-in-first-out by only allowing the
-oldest job in the queue to run; this is a TODO.  Also, another queue could be
-plugged in easily.
+arrive.  Each time the queue is refreshed, the first one that can run will run,
+with higher priority jobs checked first.  It would be easy to convert this to
+first-in-first-out by only allowing the oldest job in the queue to run; this is
+a TODO.  Also, another queue could be plugged in easily.
 
 
 
