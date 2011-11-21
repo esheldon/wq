@@ -16,6 +16,10 @@ To get help on each command, use -h, for example
     %prog sub -h
     %prog rm -h
 
+Note: additional basic setup options, *before* the command
+is processed, are
+    -p: port number
+    -s: spool directory
 """
 
 import socket
@@ -32,9 +36,11 @@ from optparse import OptionParser
 # need to move this into server.py and require a real installation
 _COMMANDS = ['serve','sub','ls','stat','rm','refresh']
 
-pars={'host':'',      # Symbolic name meaning all available interfaces
-      'port':wq.DEFAULT_PORT ,
-      'max_buffsize':wq.MAX_BUFFSIZE}
+# global variables, ick
+# only part is currently changeable through the command line
+pars={'host':wq.DEFAULT_HOST,      # Symbolic name meaning all available interfaces
+      'port':wq.DEFAULT_PORT,
+      'max_buffsize':wq.DEFAULT_MAX_BUFFSIZE}
 
 # note this is different from the timeout for the server.
 SOCK_TIMEOUT = 45.0
@@ -49,9 +55,17 @@ class ServerWrapper:
 
     The groups are an optional comma separate list.
     """
-    def __init__(self, args):
+    def __init__(self, args, **keys):
         import wq
         parser=OptionParser(ServerWrapper.__doc__)
+        parser.add_option("-s", "--spool-dir", default=None, 
+                          help="use the specified spool dir")
+
+        options, args = parser.parse_args(args)
+        spool_dir=options.spool_dir
+        if spool_dir is None:
+            spool_dir=wq.DEFAULT_SPOOL_DIR
+
         if len(args) < 1:
             parser.print_help()
             sys.exit(1)
@@ -60,7 +74,9 @@ class ServerWrapper:
             parser.print_help()
             sys.exit(1)
 
-        self.srv = wq.server.Server(args[0], port=pars['port'])
+        # these keywords get passed all the way down to JobQueue and Job
+        self.srv = wq.server.Server(args[0], port=pars['port'], spool_dir=spool_dir)
+
     def execute(self):
         self.srv.run()
 
@@ -630,7 +646,7 @@ def send_message(message, timeout=None, crash_on_timeout=False):
     return rdict
 
 
-def get_command_obj(args):
+def get_command_obj(args, **keys):
     if args[0] == 'sub':
         return Submitter(args[1:])
     elif args[0] == 'ls':
@@ -642,17 +658,19 @@ def get_command_obj(args):
     elif args[0] == 'refresh':
         return Refresher(args[1:])
     elif args[0] == 'serve':
-        return ServerWrapper(args[1:])
+        return ServerWrapper(args[1:], **keys)
     else:
         return None
 
-def main():
+def preprocess_args(args):
+    """
+    Ready the args for input to the commands.
 
-    parser=OptionParser(__doc__)
-    # this won't be used in the usual way
-    parser.add_option("-p", "--port", default=None, help="port for socket")
+    We hand-craft this because the options are variable for the commands, so we
+    can't use optparse for that.
+    """
 
-    args = sys.argv[1:]
+    keys={}
     if len(args) == 0:
         parser.print_help()
         sys.exit(1)
@@ -661,21 +679,36 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    if args[0] == '-p':
-        del args[0]
+    try:
+        ind=args.index('-p')
         try:
-            pars['port'] = int(args[0])
+            # update our global var here. The client and
+            # server would both use this
+            pars['port'] = int(args[ind+1])
         except:
-            print 'Could not extract port from input: %s' % args[1]
+            print 'Could not get port from input: %s' % args
             sys.exit(1)
-        del args[0]
+        del args[ind:ind+2]
+    except:
+        pass
 
     # now we can get the actual command, if it exists
     if len(args) == 0:
         parser.print_help()
         sys.exit(1)
 
-    cmd_obj = get_command_obj(args)
+    return args, keys
+
+def main():
+
+    parser=OptionParser(__doc__)
+    # this won't be used in the usual way
+    parser.add_option("-p", "--port", default=None, help="port for socket")
+
+    args, keys = preprocess_args(sys.argv[1:])
+
+
+    cmd_obj = get_command_obj(args, **keys)
     if cmd_obj is None:
         parser.print_help()
         sys.exit(1)

@@ -136,6 +136,7 @@ is the full list
 * group - Select cores or nodes from the specified group or groups.  This can be a scalar or list
 * notgroup - Select cores or nodes from machines not in the specified group or groups.
 * min_cores - Limit to nodes with at least this many cores.  Currently only applies when mode is *bynode* (should this work for bycore selections?).
+* min_mem - Limit to nodes with at least this much memory in GB.  Currently only applies when mode is *bycore*, *bycore1*, *bynode*.
 * X - This determines of X forwarding is used, default is False. For yes use true,1 for no use false,0
 * priority - Currently should be one of low, med, high.  Higher priority jobs will be queued first.
 

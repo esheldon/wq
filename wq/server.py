@@ -18,19 +18,14 @@ import os
 import glob
 import cPickle
 
-HOST = ''      # Symbolic name meaning all available interfaces
+DEFAULT_HOST = ''      # Symbolic name meaning all available interfaces
 DEFAULT_PORT = 51093   # Arbitrary non-privileged port
-MAX_BUFFSIZE = 4096
+DEFAULT_MAX_BUFFSIZE = 4096
 
 # only listen for this many seconds, then refresh the queue
-SOCK_TIMEOUT = 30.0
-WAIT_SLEEP = 10.0
-SPOOL_DIR = "/astro/u/anze/wqspool/"
-
-from optparse import OptionParser
-parser=OptionParser(__doc__)
-parser.add_option("-p", "--port", default=None, help="port for socket")
-
+DEFAULT_SOCK_TIMEOUT = 30.0
+DEFAULT_WAIT_SLEEP = 10.0
+DEFAULT_SPOOL_DIR = "~/wqspool/"
 
 def print_stat(status):
     """
@@ -92,19 +87,25 @@ def socket_recieve(conn, buffsize):
     return data
  
 class Server:
-    def __init__(self, cluster_file, port=None):
+    def __init__(self, cluster_file, **keys):
+
+        # copy the state, in case we screw up somewhere and modify the keys
+        self.keys = copy.deepcopy(keys) 
+
         self.cluster_file = cluster_file
-        self.queue = JobQueue(cluster_file)
-        
-        if port is None:
-            self.port = DEFAULT_PORT
-        else:
-            self.port=port
+
+        # note passing on state of the system.
+        self.queue = JobQueue(cluster_file, **keys)
+        self.buffsize = keys.get('buffsize',DEFAULT_MAX_BUFFSIZE)
 
     def open_socket(self):
+        host = self.keys.get('host',DEFAULT_HOST)
+        port = self.keys.get('port',DEFAULT_PORT)
+        timeout = self.keys.get('timeout',DEFAULT_SOCK_TIMEOUT)
+
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.bind((HOST, self.port))
-        self.sock.settimeout(SOCK_TIMEOUT)
+        self.sock.bind((host, port))
+        self.sock.settimeout(timeout)
 
     def wait_for_connection(self):
         """
@@ -132,7 +133,7 @@ class Server:
 
                 conn, addr = self.wait_for_connection()
 
-                data = socket_recieve(conn, MAX_BUFFSIZE)
+                data = socket_recieve(conn, self.buffsize)
 
                 # hmmm.. empty message, should we really dump out?
                 if not data: 
@@ -251,7 +252,7 @@ class Cluster:
 
 class Job(dict):
 
-    def __init__(self, message):
+    def __init__(self, message, **keys):
         # make sure pid,require are in message
         # and copy them into self
 
@@ -274,6 +275,8 @@ class Job(dict):
             self['status'] = 'wait'
             self['reason'] = ''
 
+        self.spool_dir = os.path.expanduser(keys.get('spool_dir',DEFAULT_SPOOL_DIR))
+        self.wait_sleep = keys.get('wait_sleep',DEFAULT_WAIT_SLEEP)
 
         self['priority'] = self['require'].get('priority','med')
         if self['priority'] not in ['low','med','high']:
@@ -285,7 +288,7 @@ class Job(dict):
 
 
     def Spool(self):
-        fname = SPOOL_DIR+'/'+str(self['pid'])+'.'+self['status']
+        fname = os.path.join(self.spool_dir,str(self['pid'])+'.'+self['status'])
         self.UnSpool() ## just remove the old one first
                        ## we could just rename, but things that were waiting
                        ## maybe running now
@@ -294,7 +297,7 @@ class Job(dict):
         f=open(fname,'w')
         cPickle.dump(self,f,-1) #highest protocol
         f.close()
-        self['spool_wait'] = WAIT_SLEEP
+        self['spool_wait'] = self.wait_sleep
 
 
     def UnSpool(self):
@@ -368,11 +371,15 @@ class Job(dict):
 
         reqs = self['require']
 
-        N = reqs.get('N', 1)
+        N = int(reqs.get('N', 1))
         Np=N
 
         for h in cluster.nodes:
             nd = cluster.nodes[h]
+
+            min_mem = float(reqs.get('min_mem',0.0))
+            if nd.mem < min_mem:
+                continue
 
             ## is this node actually what we want
             ing = self._get_req_list(reqs, 'group')
@@ -423,7 +430,9 @@ class Job(dict):
 
 
     def _match_bycore1(self, cluster):
-
+        """
+        Get cores all from one node.
+        """
         pmatch=False
         match=False
         hosts=[] # actually matched hosts
@@ -431,11 +440,15 @@ class Job(dict):
 
         reqs = self['require']
 
-        N = reqs.get('N', 1)
+        N = int(reqs.get('N', 1))
         Np=N
 
         for h in cluster.nodes:
             nd = cluster.nodes[h]
+
+            min_mem = float(reqs.get('min_mem',0.0))
+            if nd.mem < min_mem:
+                continue
 
             ## is this node actually what we want
             ing = self._get_req_list(reqs, 'group')
@@ -494,13 +507,18 @@ class Job(dict):
 
         reqs = self['require']
 
-        N = reqs.get('N', 1)
+        N = int(reqs.get('N', 1))
         Np=N
 
         for h in cluster.nodes:
             nd = cluster.nodes[h]
-            min_cores = reqs.get('min_cores',0)
+
+            min_cores = int(reqs.get('min_cores',0))
             if nd.ncores < min_cores:
+                continue
+
+            min_mem = float(reqs.get('min_mem',0.0))
+            if nd.mem < min_mem:
                 continue
 
             ## is this node actually what we want
@@ -563,8 +581,7 @@ class Job(dict):
             return pmatch, match, hosts, reason
 
         nd = cluster.nodes[h]
-        N = reqs.get('N', 1)
-        
+        N = int(reqs.get('N', 1))
 
         if nd.ncores >= N:
             pmatch=True
@@ -626,13 +643,23 @@ class Job(dict):
         return d
 
 class JobQueue:
-    def __init__(self, cluster_file):
+    def __init__(self, cluster_file, **keys):
+
+        # copy the state, in case we screw up somewhere and modify the keys
+        self.keys = copy.deepcopy(keys)
+
+        self.spool_dir = os.path.expanduser(keys.get('spool_dir',DEFAULT_SPOOL_DIR))
+        if not os.path.exists(self.spool_dir):
+            print 'making spool dir:',self.spool_dir
+            os.makedirs(self.spool_dir)
+
         print "Loading cluster"
         self.cluster = Cluster(cluster_file)
-        #print self.cluster.Status()
         self.queue = []
+
         print "Loading jobs"
-        for fn in glob.glob (SPOOL_DIR+'/*'):
+        pattern = os.path.join(self.spool_dir,'*')
+        for fn in glob.glob(pattern):
             job = cPickle.load(open(fn))
             if (job['status']=='run'):
                 ### here we just need to reserver cluster.
@@ -716,7 +743,10 @@ class JobQueue:
             self.response['error'] = "submit requests must contain the 'require' field"
             return
 
-        newjob = Job(message)
+        # pass on the state
+        keys = self.keys
+        newjob = Job(message, **keys)
+
         newjob.match(self.cluster)
         if newjob['status'] == 'nevermatch':
             self.response['error'] = newjob['reason']
@@ -863,31 +893,4 @@ class JobQueue:
         else:
             return False
 
-        """
-        try:
-            # this doesn't actually kill the job, it does nothing if the pid
-            # exists, if doesn't exist raises OSError
-            os.kill(pid, 0)
-        except OSError:
-            return False
-        else:
-            return True
-        """
 
-
-    
-def main():
-
-    options, args = parser.parse_args(sys.argv[1:])
-    if len(args) < 1:
-        parser.print_help()
-        sys.exit(45)
-
-    cluster_file = args[0]
-    srv = Server(cluster_file, port=options.port)
-    
-    srv.run()
-
-
-if __name__=="__main__":
-    main()
