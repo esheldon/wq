@@ -15,13 +15,17 @@ For best results, users should have ssh keys and an ssh agent running to allow
 ssh login to the nodes without typing their pass-phrase.  When submitting many
 jobs, it is appropriate to use "nohup" and put the client in the background.
 
-The only queue currently supported is first in first out (FIFO), with
-priorities.  Another could be plugged in easily.
+The only queue currently supported is a very simple matching queue with
+priorities.  This is very simple: jobs are put in the queue in order they
+arrive.  Each time the queue is refreshed, the first one that can run will run.
+It would be easy to convert this to first-in-first-out by only allowing the
+oldest job in the queue to run; this is a TODO.  Also, another queue could be
+plugged in easily.
 
 
 
-The "wq" Script
----------------
+The wq Script
+-------------
 
 All operations are performed using the wq script (short for "work queue"),
 such as running the server, starting jobs, listing the queue, etc.
