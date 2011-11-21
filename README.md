@@ -40,7 +40,7 @@ The "wq" Script
 ---------------
 
 All operations are performed using the wq script (short for "work queue"),
-including running the server, starting jobs, listing the queue, etc.
+such as running the server, starting jobs, listing the queue, etc.
 
 
 
@@ -53,7 +53,7 @@ commands as an argument
     wq sub job_file 
     wq sub -c "commands"
 
-The job file contains a "command" and a set of requirements; see the Job File
+The job file contains a "command" and a set of requirements; see the Job Files
 section for more details.  You can also send requirements using -r/--require
 
     
@@ -61,10 +61,9 @@ section for more details.  You can also send requirements using -r/--require
     wq sub -r "requirements" -c "commands"
 
 Requirements sent using -r will over-ride those in the job file.  For
-a list of available requirements fields, see the Requirements section.
+a list of available requirements fields, see the Requirements sub-section.
 
-Job Files
----------
+### 
 
 The job files and requirements all to YAML
 syntax <http://en.wikipedia.org/wiki/YAML>.  For example, to run the command
@@ -91,10 +90,9 @@ or using note-taking notation
         - gen1
         - gen2
 
-See the Requirements section for a full list of requirements
+See the Requirements sub-section for a full list of requirements
 
-Sending Requirements on the Command Line
-----------------------------------------
+### Sending Requirements on the Command Line
 
 You can specify requirements on the command line using -r/--require.
 
@@ -104,8 +102,7 @@ Each requirement is valid YAML. Note, however, that each element is separated
 by a semicolon, which is **not** valid YAML.  Internally the semicolons are
 replaced by newlines, after which the result is parsed just like a job file.
 
-Requirements
-------------
+### Requirements
 
 By default, a job is simply assigned a single core on the first available node.
 You can use requirements to change what nodes are selected for your job. The following
