@@ -21,7 +21,8 @@ priorities.  Another could be plugged in easily.
 Dependencies
 ------------
 
-You need a fairly recent python and a yaml parser; wq assumes works "import yaml".
+You need a fairly recent python and a yaml parser; wq assumes this works
+"import yaml".
 
 Installation
 ------------
