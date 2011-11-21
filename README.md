@@ -63,14 +63,6 @@ otherwise the output will just go to a file called nohup.out in your current
 working directory.  Note this output is just the output of the wq script; your
 commands should take care of their own stdout/stdin.
 
-### Getting an interactive shell on a worker node.
-
-For an interactive shell, just use "bash" or your favorite shell as the
-command.  If you need the display for graphics, plotting, etc. make sure
-to send the X requirement.  e.g.
-
-    wq sub -c bash
-    wq sub -r "X:1" -c bash
 
 ###  Job Files
 
@@ -156,6 +148,17 @@ Here is a full, commented example
 
     # require at least this many cores
     min_cores: 8
+
+
+Getting an interactive shell on a worker node
+---------------------------------------------
+
+For an interactive shell, just use "bash" or your favorite shell as the
+command.  If you need the display for graphics, plotting, etc. make sure
+to send the X requirement.  e.g.
+
+    wq sub -c bash
+    wq sub -r "X:1" -c bash
 
 
 Getting Statistics For the Cluster and Queue
