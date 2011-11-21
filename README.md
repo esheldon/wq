@@ -76,30 +76,37 @@ to send the X requirement.  e.g.
 
 The job files and requirements are all in YAML
 syntax <http://en.wikipedia.org/wiki/YAML>.  For example, to run the command
-"script" on a single core, this would be the job file (without indentation)
+"script" on a single core, this would be the job file
 
     command: script
 
-To do the same from the command line
-
-    wq sub -c script
-
 You can also put requirements in the job file.  For example, to grab 3 cores
+and only use  nodes from groups gen1 and gen2, but not group slow
 
     command: script
     N: 3
-
-To only use nodes from a particular group, add a groups list
-
     group: [gen1, gen3]
+    notgroup: slow
 
-or using note-taking notation
+Note group/notgroup are special in that they can take either a scalar or a
+list. You can also specify lists using note-taking notation
 
     group:
         - gen1
         - gen2
 
 See the Requirements sub-section for a full list of requirements
+
+### specifying comands as arguments
+
+In addition to using job files, you can run a command by specifying -c and an
+argument
+
+    wq sub -c script
+
+Remember to quote commands that have spaces/arguments.   For example, 
+
+    wq sub -c "script -a input"
 
 ### Sending Requirements on the Command Line
 
