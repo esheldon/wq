@@ -19,10 +19,11 @@ The only queue currently supported is a very simple matching queue with
 priorities.  This is very simple: jobs are put in the queue in order they
 arrive.  Each time the queue is refreshed, the first one that can run will run,
 with higher priority jobs checked first.  A TODO is to allow a job to have
-priority "block", that will block competing jobs until it can run.  Another
-queue could be plugged in easily if desired.
+priority "block", that will block competing jobs until it can run.  This is
+useful for jobs that require a lot of machines, and just need to hold of other
+jobs for a while.  
 
-
+Another queue could be plugged in easily if desired.
 
 The wq Script
 -------------
