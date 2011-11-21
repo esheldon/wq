@@ -42,20 +42,7 @@ The "wq" Script
 All operations are performed using the wq script (short for "work queue"),
 including running the server, starting jobs, listing the queue, etc.
 
-Starting a Server
------------------
 
-    wq serve cluster_description
-
-The cluster description file has a line for each work node in your cluster.
-The format is
-
-    hostname ncores mem labels
-
-
-The mem is in gigabytes, and can be floating point.  The labels are optional
-and comma separated.  You can change the port for sockets using -p; the clients
-will also need to use that port.
 
 Submitting Jobs
 ---------------
@@ -154,3 +141,69 @@ Here is a full, commented example
 
     # require at least this many cores
     min_cores: 8
+
+
+Getting Statistics For the Cluster and Queue
+--------------------------------------------
+
+### Job Listings 
+
+To get a job listing us "ls".  Send -f or --full to see a full list of
+nodes for each job and the full command line. Send -u/--user to restrict
+the job list to a particular user.
+
+
+    wq ls
+    wq ls -f
+    wq ls -u username --full
+
+### Cluster and Queue Status
+
+Use the "stat" command to get a summary of the cluster usage and queue
+status.
+
+    wq stat
+
+For each node, the usage is displayed using an asterisk * for used cores and a
+dot . for unused cores.  for example [***....] means three used and 4 unused
+cores.  Also displayed is the memory available and the labels/groups for each
+host.
+
+Refreshing the Queue
+--------------------
+
+The server refreshes every 30 seconds by default.  To request a refresh
+use the "refresh" command
+
+    wq refresh
+
+Removing Jobs
+-------------
+
+To remove a job or jobs from the queue, send the "rm" command
+
+    wq rm pid
+
+Where pid is the process id you can get using "wq ls".  To remove
+all of your jobs
+
+    wq rm all
+
+Only root can remove other jobs for another user.  TODO: allow
+sending a list of pids to remove.
+
+Starting a Server
+-----------------
+
+    wq serve cluster_description
+
+The cluster description file has a line for each work node in your cluster.
+The format is
+
+    hostname ncores mem labels
+
+
+The mem is in gigabytes, and can be floating point.  The labels are optional
+and comma separated.  You can change the port for sockets using -p; the clients
+will also need to use that port.
+
