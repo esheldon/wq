@@ -36,6 +36,7 @@ def print_stat(status):
     """
     input status is the result of cluster.Status
     """
+    print
     nodes=status['nodes']
     lines=[]
     lens={}
