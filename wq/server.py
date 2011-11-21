@@ -3,9 +3,9 @@
 
 The description file is 
 
-    hostname ncores mem labels
+    hostname ncores mem groups
 
-The labels are optional.
+The groups are optional comma separated list.
 """
 
 import socket

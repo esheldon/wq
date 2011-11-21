@@ -25,8 +25,13 @@ The "wq" Script
 
 All operations are performed using the wq script (short for "work queue"),
 such as running the server, starting jobs, listing the queue, etc.
+You specify a command and a set of arguments options for that command. e.g.
+to submit jobs
 
+    wq sub [options] [args]
 
+To get help for wq use "wq -h".  To get help on a wq command, use "wq command
+-h".
 
 Submitting Jobs
 ---------------
@@ -108,7 +113,8 @@ You can specify requirements on the command line using -r/--require.
 
 Each requirement is valid YAML. Note, however, that each element is separated
 by a semicolon, which is **not** valid YAML.  Internally the semicolons are
-replaced by newlines, after which the result is parsed just like a job file.
+replaced by newlines, after which the requirements are parsed just like a job
+file.
 
 ### Requirements
 
@@ -193,8 +199,7 @@ status.
 
 For each node, the usage is displayed using an asterisk * for used cores and a
 dot . for unused cores.  for example [***....] means three used and 4 unused
-cores.  Also displayed is the memory available and the labels/groups for each
-host.
+cores.  Also displayed is the memory available and the groups for each host.
 
 Here is an example
 
@@ -243,10 +248,10 @@ Starting a Server
 The cluster description file has a line for each work node in your cluster.
 The format is
 
-    hostname ncores mem labels
+    hostname ncores mem groups
 
 
-The mem is in gigabytes, and can be floating point.  The labels are optional
+The mem is in gigabytes, and can be floating point.  The groups are optional
 and comma separated.  You can change the port for sockets using -p; the clients
 will also need to use that port.
 

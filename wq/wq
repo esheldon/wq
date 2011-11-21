@@ -45,9 +45,9 @@ class ServerWrapper:
 
     The def file is one line per node
 
-        hostname ncores mem labels
+        hostname ncores mem groups
 
-    The labels are optional
+    The groups are an optional comma separate list.
     """
     def __init__(self, args):
         import wq
