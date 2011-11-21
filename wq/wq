@@ -19,7 +19,8 @@ To get help on each command, use -h, for example
 Note: additional basic setup options, *before* the command
 is processed, are
     -p: port number
-    -s: spool directory
+e.g.
+    wq -p port sub ...
 """
 
 import socket
@@ -662,7 +663,7 @@ def get_command_obj(args, **keys):
     else:
         return None
 
-def preprocess_args(args):
+def preprocess_args(args, parser):
     """
     Ready the args for input to the commands.
 
@@ -705,8 +706,7 @@ def main():
     # this won't be used in the usual way
     parser.add_option("-p", "--port", default=None, help="port for socket")
 
-    args, keys = preprocess_args(sys.argv[1:])
-
+    args, keys = preprocess_args(sys.argv[1:], parser)
 
     cmd_obj = get_command_obj(args, **keys)
     if cmd_obj is None:

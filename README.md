@@ -28,10 +28,10 @@ Another queue could be plugged in easily if desired.
 The wq Script
 -------------
 
-All operations are performed using the wq script (short for "work queue"),
-such as running the server, starting jobs, listing the queue, etc.
-You specify a command and a set of arguments options for that command. e.g.
-to submit jobs
+All operations are performed using the wq script (short for "work queue"), such
+as running the server, starting jobs, listing the queue, etc.  You specify a
+command and a set of arguments and options for that command. e.g.  to submit
+jobs
 
     wq sub [options] [args]
 
