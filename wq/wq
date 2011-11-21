@@ -10,6 +10,7 @@ options for each command
     stat:       Get the status of the cluster/queue.
     rm:         Remove a job or all jobs for a user.
     refresh:    Force a refresh of the job queue.
+    serve:      Run a server.
 
 To get help on each command, use -h, for example
     %prog sub -h
@@ -41,6 +42,12 @@ SOCK_TIMEOUT = 45.0
 class ServerWrapper:
     """
     usage: wq serve cluster_def_file
+
+    The def file is one line per node
+
+        hostname ncores mem labels
+
+    The labels are optional
     """
     def __init__(self, args):
         import wq
@@ -275,7 +282,8 @@ class Remover(dict):
     """
     usage: wq rm pid
 
-    Request that the server remove the specified job
+    Request that the server remove the specified job.  Send 'all' for the pid
+    to remove all of your jobs.
     """
 
     def __init__(self, args):
@@ -345,12 +353,15 @@ class Submitter(dict):
     two basic modes:
         1) 
             wq sub -r require job_file
-        require will over-ride requirements in the job file.
+
+        Where job_file is in YAML format and has a command and a set of
+        requirements.  -r/--require will over-ride requirements in the job
+        file.  the long form of -r is --require
 
         2)
             wq sub -r require -c command
-        The command is just a string.  You probably want to
-        double quote it.
+
+        The command is just a string.  You probably want to double quote it.
     """
     def __init__(self, args):
         #Command.__init__(self, args)
@@ -446,7 +457,7 @@ class Submitter(dict):
 
         # should we forward X? default is no no.  This is in the
         # requirements as
-        #   X: true or X: 1 for yes (anything not False,0,None,'')
+        #   X: true or X: 1 for yes (anything evaluates as True in python)
         #   X: false or X: 0 for no
         xforward = require.get('X',False)
         if not xforward:
