@@ -36,6 +36,37 @@ def print_stat(status):
     """
     input status is the result of cluster.Status
     """
+    nodes=status['nodes']
+    lines=[]
+    lens={}
+    for k in ['usage','host','mem','groups']:
+        lens[k] = len(k)
+    for d in nodes:
+
+        usage = '['+'*'*d['used']+'.'*(d['ncores']-d['used'])+']'
+        l={'usage':usage,
+           'host':d['hostname'],
+           'mem':'%g' % d['mem'],
+           'groups':','.join(d['grps'])}
+        for n in lens:
+            lens[n] = max(lens[n],len(l[n]))
+        lines.append(l)
+
+    fmt = '%(usage)-'+str(lens['usage'])+'s  %(host)-'+str(lens['host'])+'s '
+    fmt += '%(mem)'+str(lens['mem'])+'s %(groups)-'+str(lens['groups'])+'s'
+    hdr={}
+    for k in lens:
+        hdr[k]=k
+    print fmt % hdr
+    for l in lines:
+        print fmt % l
+
+    print '\nUsed cores : %i/%i (%3.1f%%)'%(status['used'],status['ncores'],100.*status['used']/status['ncores'])
+
+def print_stat_old(status):
+    """
+    input status is the result of cluster.Status
+    """
     print 'Cluster status:\n'
     nodes=status['nodes']
     for d in nodes:
@@ -43,6 +74,7 @@ def print_stat(status):
         print d['hostname']+' mem='+str(d['mem'])+' grps='+','.join(d['grps'])
 
     print '\n Used cores : %i/%i (%3.1f%%)'%(status['used'],status['ncores'],100.*status['used']/status['ncores'])
+
 
 def socket_send(conn, mess):
     """
@@ -351,7 +383,6 @@ class Job(dict):
 
         for h in cluster.nodes:
             nd = cluster.nodes[h]
-            #print "node = ",h
 
             ## is this node actually what we want
             ing = self._get_req_list(reqs, 'group')
@@ -374,14 +405,12 @@ class Job(dict):
                 if (not ok):
                     continue ### not in the group
 
-            #print "nd.nc=",nd.ncores
             if (nd.ncores>=Np):
                 pmatch=True
             else:
                 Np-=nd.ncores
 
             nfree= nd.ncores-nd.used
-            #print "nfree=",nfree, N
             if (nfree>=N):
                 for x in xrange(N):
                     hosts.append(h)

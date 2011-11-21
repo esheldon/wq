@@ -68,10 +68,12 @@ class Lister(dict):
     """
     usage: wq ls [options]
 
-    print the jobs in the queue to stdout.  If -f/--full is sent,
-    the full command line is displayed and the full host list is displayed.
-    Normally, only the first part of the command is shown, and only the
-    number of hosts is shown.
+    print the jobs in the queue to stdout.  If -f/--full is sent, the full
+    command line is displayed and the full host list is displayed.  Normally,
+    only the first part of the command is shown, and only the number of hosts
+    is shown.  If -u/--user is sent, the listing is restricted to that
+    user/users.
+
     """
 
     def __init__(self, args):
