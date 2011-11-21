@@ -79,8 +79,8 @@ a list of available requirements fields, see the Requirements section.
 Job Files
 ---------
 
-The job files and requirements all to [YAML
-syntax](http://en.wikipedia.org/wiki/YAML).  For example, to run the command
+The job files and requirements all to YAML
+syntax <http://en.wikipedia.org/wiki/YAML>.  For example, to run the command
 "script" on a single core, this would be the job file (without indentation)
 
     command: script
@@ -105,6 +105,17 @@ or using note-taking notation
         - gen2
 
 See the Requirements section for a full list of requirements
+
+Sending Requirements on the Command Line
+----------------------------------------
+
+You can specify requirements on the command line using -r/--require.
+
+    wq sub -r "mode: bynode; N: 5" -c some_command
+
+Each requirement is valid YAML. Note, however, that each element is separated
+by a semicolon, which is **not** valid YAML.  Internally the semicolons are
+replaced by newlines, after which the result is parsed just like a job file.
 
 Requirements
 ------------
