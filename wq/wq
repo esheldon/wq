@@ -484,8 +484,20 @@ class Submitter(dict):
         if sres['response'] == 'wait':
             # wait until we can go
             print "waiting:",sres['reason']
-            signal.signal(signal.SIGUSR1, self.receive_signal)
-            signal.pause()
+            #signal.signal(signal.SIGUSR1, self.receive_signal)
+            fname = sres['spool_fname']
+            wsleep = sres['spool_wait']
+            while True:
+                time.sleep(wsleep)
+                try:
+                    print "trying:",fname
+                    open(fname)
+                    print "ok"
+                    break
+                except IOError:
+                    pass
+
+
             message['command']='gethosts'
             sres=send_message(message)
 

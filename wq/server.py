@@ -15,6 +15,8 @@ import time
 import copy
 import sys
 import os
+import glob
+import cPickle
 
 HOST = ''      # Symbolic name meaning all available interfaces
 DEFAULT_PORT = 51093   # Arbitrary non-privileged port
@@ -22,6 +24,8 @@ MAX_BUFFSIZE = 4096
 
 # only listen for this many seconds, then refresh the queue
 SOCK_TIMEOUT = 30.0
+WAIT_SLEEP = 10.0
+SPOOL_DIR = "/astro/u/anze/wqspool/"
 
 from optparse import OptionParser
 parser=OptionParser(__doc__)
@@ -255,7 +259,27 @@ class Job(dict):
             self['reason']="priority must be on of:  low, med, high."
 
         self['time_sub'] = time.time()
+        self['spool_fname'] = None
 
+
+    def Spool(self):
+        fname = SPOOL_DIR+'/'+str(self['pid'])+'.'+self['status']
+        self.UnSpool() ## just remove the old one first
+                       ## we could just rename, but things that were waiting
+                       ## maybe running now
+
+        self['spool_fname'] = fname
+        f=open(fname,'w')
+        cPickle.dump(self,f,-1) #highest protocol
+        f.close()
+        self['spool_wait'] = WAIT_SLEEP
+
+
+    def UnSpool(self):
+        if (self['spool_fname']):
+            os.remove(self['spool_fname'])
+            self['spool_fname']=None
+    
 
     def match(self, cluster):
         if self['status'] == 'nevermatch':
@@ -289,11 +313,14 @@ class Job(dict):
                 self['hosts']=hosts
                 cluster.Reserve(hosts)
                 self['time_run'] = time.time()
-
                 self['status']='run'
+                self.Spool()
+
             else:
                  self['status']='wait'
                  self['reason']=reason
+                 self.Spool()
+
         else:
             self['status']='nevermatch'
             self['reason']=reason
@@ -566,6 +593,7 @@ class Job(dict):
 
 
     def unmatch(self, cluster):
+        self.UnSpool()
         if self['status'] == 'run':
             cluster.Unreserve(self['hosts'])
             self['status'] = 'done'
@@ -582,8 +610,17 @@ class JobQueue:
         print "Loading cluster"
         self.cluster = Cluster(cluster_file)
         #print self.cluster.Status()
-        print_stat(self.cluster.Status())
         self.queue = []
+        print "Loading jobs"
+        for fn in glob.glob (SPOOL_DIR+'/*'):
+            job = cPickle.load(open(fn))
+            if (job['status']=='run'):
+                ### here we just need to reserver cluster.
+                self.cluster.Reserve(job['hosts'])
+            self.queue.append(job)
+
+        print_stat(self.cluster.Status())
+
 
     def process_message(self, message):
         # we will overwrite this
@@ -622,10 +659,7 @@ class JobQueue:
                 elif job['status'] != 'run':
                     # see if we can now run the job
                     job.match(self.cluster)
-                    if job['status'] == 'run':
-                        # *now* send a signal to start it
-                        self._signal_start(job['pid'])
-
+                    ## signal send automatically by spool.
 
     def get_response(self):
         return self.response
@@ -672,6 +706,8 @@ class JobQueue:
             # we do a refresh
             self.queue.append(newjob)
             self.response['response'] = newjob['status']
+            self.response['spool_fname']=newjob['spool_fname'].replace('wait','run')
+            self.response['spool_wait']=newjob['spool_wait']
             if (self.response['response']=='run'):
                 self.response['hosts']=newjob['hosts']
             elif self.response['response'] == 'wait':
@@ -791,12 +827,13 @@ class JobQueue:
 
 
 
-    def _signal_start(self, pid):
-        import signal
-        try:
-            os.kill(pid, signal.SIGUSR1)
-        except OSError:
-            print 'pid %s no longer exists' % pid
+    # Not needed anymore
+    # def _signal_start(self, pid):
+    #     import signal
+    #     try:
+    #         os.kill(pid, signal.SIGUSR1)
+    #     except OSError:
+    #         print 'pid %s no longer exists' % pid
 
     def _pid_exists(self, pid):        
         """ Check For the existence of a unix pid. """
