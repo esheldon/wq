@@ -62,19 +62,8 @@ def print_stat(status):
     for l in lines:
         print fmt % l
 
-    print '\nUsed cores : %i/%i (%3.1f%%)'%(status['used'],status['ncores'],100.*status['used']/status['ncores'])
-
-def print_stat_old(status):
-    """
-    input status is the result of cluster.Status
-    """
-    print 'Cluster status:\n'
-    nodes=status['nodes']
-    for d in nodes:
-        print '['+'*'*int(d['used'])+'.'*int(d['ncores']-d['used'])+']'+' '*int(max(0,24-d['ncores'])),
-        print d['hostname']+' mem='+str(d['mem'])+' grps='+','.join(d['grps'])
-
-    print '\n Used cores : %i/%i (%3.1f%%)'%(status['used'],status['ncores'],100.*status['used']/status['ncores'])
+    perc=100.*status['used']/status['ncores']
+    print '\nUsed cores: %i/%i (%3.1f%%)' % (status['used'],status['ncores'],perc)
 
 
 def socket_send(conn, mess):
