@@ -157,11 +157,12 @@ class Lister(dict):
         for l in lines:
             print fmt % l
 
-        stats='Running: %s Waiting: %s' % (nrun,nwait)
+        njobs = nrun+nwait
+        stats = 'Jobs: %s Running: %s Waiting: %s' % (njobs,nrun,nwait)
         if self.user is not None:
-            print ' User: %s Jobs: %s' % (','.join(self.user),stats)
+            print ' User: %s %s' % (','.join(self.user),stats)
         else:
-            print ' Jobs: %s' % stats
+            print ' %s' % stats
                 
     def _get_ncores(self, r):
         if r['status'] == 'run':
