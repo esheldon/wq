@@ -47,17 +47,21 @@ section for more details.  You can also send requirements using -r/--require
 Requirements sent using -r will over-ride those in the job file.  For
 a list of available requirements fields, see the Requirements sub-section.
 
+Note if you need to keep the outputs of your command, you should redirect them
+to files.
+
 ### Putting Jobs in the Background
 
 You may want to submit a large number of jobs at once.  This is most convenient
-if the jobs go into the background.  The best way to do this is using
-nohub and redirecting the output to a file.
+if the jobs go into the background.  The best way to do this is using nohup and
+redirecting the output to a file.  This puts stdout/stderr into a logfile
 
-    nohub wq sub job_file > jobfile.wqlog 2> jobfile.wqerr &
+    nohup wq sub job_file &> logfile  &
 
-You should redirect the output becuase otherwise it will just go to a file
-called nohup.out in your current working directory. You can of course put
-both stderr/stdout in the same file using &> jobfile.wqlog &
+As shown above, when using nohup, you should redirect the wq outputs to files;
+otherwise the output will just go to a file called nohup.out in your current
+working directory.  Note this output is just the output of the wq script; your
+commands should take care of their own stdout/stdin.
 
 ### Getting an interactive shell on a worker node.
 
