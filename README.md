@@ -24,8 +24,7 @@ Installation
 
 ### Dependencies
 
-You need a fairly recent python and a yaml parser; wq assumes this works
-"import yaml".  The authors are using pyyaml <http://pyyaml.org/>
+You need a fairly recent python and pyyaml <http://pyyaml.org/>
 
 ### Install
 
