@@ -285,25 +285,33 @@ class Remover(dict):
     """
     usage: wq rm pid
 
-    Request that the server remove the specified job.  Send 'all' for the pid
-    to remove all of your jobs.
+    Request that the server remove the specified job or jobs; the pid can be a
+    comma separated list.  Use "wq rm all" to remove all of your jobs.
     """
 
     def __init__(self, args):
         parser=OptionParser(Remover.__doc__)
-        parser.add_option("-a", "--all", action="store_true",
-                          help="remove all jobs for current user")
         options, args = parser.parse_args(args)
 
-        if options.all:
-            self.pid='all'
+        if len(args) < 1:
+            parser.print_help()
+            sys.exit(1)
+
+        pid = args[0]
+        if pid == 'all':
+            self.pid=['all']
         else:
-            self.pid = int(args[0])
+            pid = pid.split(',')
+            self.pid = [int(p) for p in pid]
 
     def execute(self):
+        for pid in self.pid:
+            self.do_remove(pid)
+    
+    def do_remove(self, pid):
         message={}
         message['command'] = 'rm'
-        message['pid'] = self.pid
+        message['pid'] = pid
         message['user'] = os.environ['USER']
 
         resp = send_message(message)
