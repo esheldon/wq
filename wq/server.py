@@ -290,6 +290,9 @@ class Job(dict):
 
 
     def Spool(self):
+        if self['status'] == 'ready':
+            self['status'] = 'run'
+
         fname = os.path.join(self.spool_dir,str(self['pid'])+'.'+self['status'])
         self.UnSpool() ## just remove the old one first
                        ## we could just rename, but things that were waiting
@@ -301,6 +304,9 @@ class Job(dict):
         f.close()
         self['spool_wait'] = self.wait_sleep
 
+        if self['status'] in ['ready','run']:
+            self['time_run'] = time.time()
+
 
     def UnSpool(self):
         if (self['spool_fname']):
@@ -309,7 +315,7 @@ class Job(dict):
             self['spool_fname']=None
     
 
-    def match(self, cluster):
+    def match(self, cluster, block_pid=None):
         if self['status'] == 'nevermatch':
             return
         if self['status'] != 'wait':
@@ -335,19 +341,14 @@ class Job(dict):
             reason="bad submit_mode '%s'" % submit_mode
 
 
-
         if pmatch:
             if match:
                 self['hosts']=hosts
-                cluster.Reserve(hosts)
-                self['time_run'] = time.time()
-                self['status']='run'
-                self.Spool()
+                self['status']='ready'
 
             else:
-                 self['status']='wait'
-                 self['reason']=reason
-                 self.Spool()
+                self['status']='wait'
+                self['reason']=reason
 
         else:
             self['status']='nevermatch'
@@ -630,14 +631,6 @@ class Job(dict):
         return pmatch, match, hosts, reason
 
 
-
-    def unmatch(self, cluster):
-        self.UnSpool()
-        if self['status'] == 'run':
-            cluster.Unreserve(self['hosts'])
-            self['status'] = 'done'
-
-
     def asdict(self):
         d={}
         for k in self:
@@ -664,7 +657,7 @@ class JobQueue:
         for fn in glob.glob(pattern):
             job = cPickle.load(open(fn))
             if (job['status']=='run'):
-                ### here we just need to reserver cluster.
+                ### here we just need to reserve the cluster.
                 self.cluster.Reserve(job['hosts'])
             self.queue.append(job)
 
@@ -696,6 +689,7 @@ class JobQueue:
         """
 
         block_pid=None
+        pids_to_del = []
         for priority in PRIORITY_LIST:
             for i,job in enumerate(self.queue):
                 if job['priority'] != priority:
@@ -704,24 +698,32 @@ class JobQueue:
                 # see if the pid is still running, if not remove the job
                 if not self._pid_exists(job['pid']):
                     print 'removing job %s, pid no longer valid'
-                    self.queue[i].unmatch(self.cluster)
-                    del self.queue[i]
+                    pids_to_del.append(job['pid'])
+                    job.UnSpool()
+                    if job['status'] == 'run':
+                        self.cluster.Unreserve(job['hosts'])
+                        job['status'] = 'done'
+
                 elif job['status'] != 'run':
-                    # only try to run jobs if we haven'te come up against a
-                    # blocking job
-                    if block_pid is None:
+                    if block_pid is not None:
+                        job['reason'] = 'waiting for block from job %s' % block_pid
+                    else:
                         # see if we can now run the job
                         job.match(self.cluster)
-                        ## signal send automatically by spool.
-
-                        # special case of blocking: if we hit a blocking
-                        # job that is not running, we will not let
-                        # any others run
-                        if priority == 'block' and job['status'] == 'wait':
+                        
+                        if job['status'] == 'ready':
+                            self.cluster.Reserve(job['hosts'])
+                            # this will remove any pid.wait file and write a pid.run file
+                            # sets status to 'run'
+                            job.Spool()
+                        elif priority == 'block':
+                            # special case: if we hit a blocking job that is
+                            # waiting, we will not let any others run
                             block_pid = job['pid']
-                    else:
-                        # all jobs get reason: block 
-                        job['reason'] = 'waiting for block from job %s' % block_pid
+
+        # rebuild the queue without these items
+        if len(pids_to_del) > 0:
+            self.queue = [j for j in self.queue if j['pid'] not in pids_to_del]
 
     def get_response(self):
         return self.response
@@ -747,6 +749,11 @@ class JobQueue:
         else:
             self.response['error'] = "only support 'sub' and 'list' commands"
 
+    def _blocking_job(self):
+        for job in self.queue:
+            if job['priority'] == 'block' and job['status'] == 'wait':
+                return job['pid']
+        return None
 
     def _process_submit_request(self, message):
         pid = message.get('pid')
@@ -763,10 +770,24 @@ class JobQueue:
         keys = self.keys
         newjob = Job(message, **keys)
 
+        # no side effects on cluster inside here
         newjob.match(self.cluster)
+
         if newjob['status'] == 'nevermatch':
             self.response['error'] = newjob['reason']
         else:
+            block_pid = self._blocking_job()
+            if block_pid is not None:
+                # Tell the new job to wait and blame the blocking job
+                newjob['status'] = 'wait'
+                newjob['reason'] = 'waiting for block from job %s' % block_pid
+            elif newjob['status'] == 'ready':
+                self.cluster.Reserve(newjob['hosts'])
+
+            # this will create a pid.wait or pid.run depending on status
+            # if status='ready', sets status to 'run' once the pid file is written
+            newjob.Spool()
+
             # if the status is 'run', the job will immediately
             # run. Otherwise it will wait and can't run till
             # we do a refresh
@@ -843,7 +864,12 @@ class JobQueue:
                 # just drop them from the queue, and append
                 # to return list of pids to kill
                 pids_to_kill.append(job['pid'])
-                job.unmatch(self.cluster)
+                job.UnSpool()
+                if job['status'] == 'run':
+                    self.cluster.Unreserve(job['hosts'])
+                    job['status'] = 'done'
+
+
 
         if len(pids_to_kill) == 0:
             self.response['error'] = 'No jobs for user:',user,'in queue'
@@ -882,7 +908,11 @@ class JobQueue:
         found = False
         for i,job in enumerate(self.queue):
             if job['pid'] == pid:
-                job.unmatch(self.cluster)
+                job.UnSpool()
+                if job['status'] == 'run':
+                    self.cluster.Unreserve(job['hosts'])
+                    job['status'] = 'done'
+
                 del self.queue[i]
                 self.response['response'] = 'OK'
                 found=True
