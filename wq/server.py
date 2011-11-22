@@ -300,13 +300,13 @@ class Job(dict):
                        ## maybe running now
 
         self['spool_fname'] = fname
+        self['spool_wait'] = self.wait_sleep
+        if self['status'] in ['ready','run']:
+            self['time_run'] = time.time()
+
         f=open(fname,'w')
         cPickle.dump(self,f,-1) #highest protocol
         f.close()
-        self['spool_wait'] = self.wait_sleep
-
-        if self['status'] in ['ready','run']:
-            self['time_run'] = time.time()
 
 
     def UnSpool(self):
