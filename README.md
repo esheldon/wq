@@ -6,10 +6,10 @@ Description
 This is a simple work queue written in python.  
 
 The work queue does not require root privilege to run.  It does not require
-daemons running on any of the work nodes in the cluster.  A server instance is
-run by any user and other users communicate with the server using a client.
-When scheduled to run, the client logs into the appropriate node using ssh and
-then executes the job.
+daemons running on any of the work nodes in the cluster.  A server instance can
+be run by any user and other users schedule jobs using a client.  When
+scheduled to run, the client logs into the appropriate node using ssh and then
+executes the job.
 
 For best results, users should have ssh keys and an ssh agent running to allow
 ssh login to the nodes without typing their pass-phrase.  When submitting many
