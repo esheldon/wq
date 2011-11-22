@@ -145,6 +145,7 @@ class Lister(dict):
                 this['priority'] = r['priority']
                 this['status'] = self._get_status(r)
                 this['ncores'] = self._get_ncores(r)
+                # this may replace command with job_name, if it exists
                 this['command'] = self._get_command(r)
                 this['time_sub'] = self._get_time_in(r,timenow)
                 this['time_run'] = self._get_time_run(r,timenow)
@@ -255,6 +256,9 @@ class Lister(dict):
                 return 'W'
 
     def _get_command(self, r):
+        if 'job_name' in r['require']:
+            return r['require']['job_name']
+
         if self.full:
             return r['commandline']
         else:
@@ -402,57 +406,59 @@ class Submitter(dict):
 
         options, args = parser.parse_args(args)
 
-        self['require_arg'] = options.require
+        self['require_opt'] = options.require
+
         if len(args) > 0:
             # a job file was sent
             job_file = args[0]
-            self._process_job_file(job_file)
+            commandline, reqs = self._process_job_file(job_file)
         else:
-            if options.command is None:
-                parser.print_help()
-                sys.exit(1)
-            command = options.command
-            self._process_command_string(command)
+            commandline = options.command
+            reqs = {}
+        
+
+        if commandline is None:
+            parser.print_help()
+            sys.exit(1)
+
+        # requirements sent using -r/--require over-ride
+        reqs_from_opt = self._process_require_opt(self['require_opt'])
+
+        for ro in reqs_from_opt:
+            reqs[ro] = reqs_from_opt[ro]
+
+        self['commandline'] = commandline
+        self['require'] = reqs
 
     def _process_job_file(self, fname):
         import yaml
 
-        self['require'] = yaml.load(open(fname))
-        if 'command' not in self['require']:
+        reqs = yaml.load(open(fname))
+        if 'command' not in reqs:
             raise ValueError("no command found in job file")
-        self['commandline'] = self['require']['command']
+        commandline = reqs['command']
 
         # don't need this in the requirements
-        del self['require']['command']
-        
+        del reqs['command']
 
-    def _process_command_string(self, command):
-        """
-        The command is determined by an argument.  Requirements are only
-        specified by -r/--require now
-        """
-        require = self._process_require_arg()
+        return commandline, reqs
 
-        self['require'] = require
-        self['commandline'] = command
-
-    def _process_require_arg(self):
+    def _process_require_opt(self, require_opt):
         import yaml
         import re
 
-        req={}
-        if self['require_arg'] is None:
-            return req
+        reqs={}
+        if require_opt is None:
+            return reqs
 
         # convert semicolon to newline
-        r = self['require_arg']
-        r = re.sub(';\s*', '\n', r)
-        # make sure there is a space between : and valule
+        r = re.sub(';\s*', '\n', require_opt)
+        # make sure there is a space between : and value
         r = r.replace(':',': ')
         
-        req = yaml.load(r)
+        reqs = yaml.load(r)
 
-        return req
+        return reqs
 
     def print_job_info(self):
         print '------------'

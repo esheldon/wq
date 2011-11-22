@@ -81,8 +81,9 @@ syntax <http://en.wikipedia.org/wiki/YAML>.  For example, to run the command
 
     command: script
 
-You can also put requirements in the job file.  For example, to grab 3 cores
-and only use  nodes from groups gen1 and gen2, but not group slow
+Don't forget the space between the colon ":" and the value.  You can also put
+requirements in the job file.  For example, to grab 3 cores and only use  nodes
+from groups gen1 and gen2, but not group slow
 
     command: script
     N: 3
@@ -96,7 +97,8 @@ list. You can also specify lists using note-taking notation
         - gen1
         - gen2
 
-See the Requirements sub-section for a full list of requirements
+Don't forget the space between dash "-" and value. See the Requirements
+sub-section for a full list of requirements
 
 ### specifying comands as arguments
 
@@ -117,8 +119,12 @@ You can specify requirements on the command line using -r/--require.
 
 Each requirement is valid YAML. Note, however, that each element is separated
 by a semicolon, which is **not** valid YAML.  Internally the semicolons are
-replaced by newlines, after which the requirements are parsed just like a job
-file.
+replaced by newlines.  Also, you are are allowed to leave off the required
+space between colon ":" and value; these are put in for you.  After these
+pre-processing steps, the requirements are parsed just like a job file.
+
+If you need a semicolon in your requirements, or if the automatic adding of a
+space causes problems, try using a full job file.
 
 ### Requirements
 
@@ -139,6 +145,7 @@ is the full list
 * min_mem - Limit to nodes with at least this much memory in GB.  Currently only applies when mode is *bycore*, *bycore1*, *bynode*.
 * X - This determines of X forwarding is used, default is False. For yes use true,1 for no use false,0
 * priority - Currently should be one of low, med, high.  Higher priority jobs will be queued first.
+* job_name - A name to show in job listings. Usually the command, or an abbreviated form, is shown.
 
 Here is a full, commented example
 
