@@ -16,12 +16,11 @@ ssh login to the nodes without typing their pass-phrase.  When submitting many
 jobs, it is appropriate to use "nohup" and put the client in the background.
 
 The only queue currently supported is a very simple matching queue with
-priorities.  This is very simple: jobs are put in the queue in order they
+priorities.  This is **very** simple: jobs are put in the queue in order they
 arrive.  Each time the queue is refreshed, the first one that can run will run,
-with higher priority jobs checked first.  A TODO is to allow a job to have
-priority "block", that will block competing jobs until it can run.  This is
-useful for jobs that require a lot of machines, and just need to hold of other
-jobs for a while.  
+with higher priority jobs checked first.  There is also a special priority
+"block" that blocks other jobs until it can run.  A TODO is to make this
+smarter so it only blocks jobs that directly compete for needed resources.
 
 Another queue could be plugged in easily if desired.
 
