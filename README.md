@@ -152,6 +152,7 @@ Here is a full, commented example
     # this is the command to be run.
     command: dostuff -a 35
 
+    # show this name in job listings instead of the command
     job_name: dostuff35 
 
     # this is the type of node/host selection. bynode means select entire nodes.
