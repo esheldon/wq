@@ -46,21 +46,17 @@ commands as an option
     wq sub job_file 
     wq sub -c command
 
-For example, here is how to run the command "wc file" using a command argument
-
-    wq sub -c "wc file"
-
 The job file contains a "command" and a set of requirements; see the Job Files
 section for more details.  You can also send requirements using -r/--require
     
-    wq sub -r "requirements" job_file
-    wq sub -r "requirements" -c "commands"
+    wq sub -r requirements job_file
+    wq sub -r requirements -c command
 
 Requirements sent using -r will over-ride those in the job file.  For
 a list of available requirements fields, see the Requirements sub-section.
 
-Note if you need to keep the outputs of your command, you should redirect them
-to files.
+Note if you need to keep the outputs of your command, you need to redirect them
+to files yourself.
 
 ### Putting Jobs in the Background
 
@@ -78,17 +74,17 @@ commands should take care of their own stdout/stdin.
 
 ###  Job Files
 
-The job files and requirements are all in YAML
-syntax <http://en.wikipedia.org/wiki/YAML>.  For example, to run the command
-"script" on a single core, this would be the job file
+The job files and requirements are all in YAML syntax
+<http://en.wikipedia.org/wiki/YAML>.  For example, to run the command "dostuff
+-i /some/input -o /some/output on a single core, this would be the job file
 
-    command: script
+    command: dostuff -i /some/input -o /some/output
 
 Don't forget the space between the colon ":" and the value.  You can also put
 requirements in the job file.  For example, to grab 3 cores and only use  nodes
 from groups gen1 and gen2, but not group slow
 
-    command: script
+    command: dostuff -i /some/input -o /some/output
     N: 3
     group: [gen1, gen3]
     notgroup: slow
@@ -112,7 +108,7 @@ argument
 
 Remember to quote commands that have spaces/arguments.   For example, 
 
-    wq sub -c "script -a input"
+    wq sub -c "cd /some/dir; script -a input"
 
 ### Sending Requirements on the Command Line
 
