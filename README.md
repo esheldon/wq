@@ -123,8 +123,8 @@ replaced by newlines.  Also, you are are allowed to leave off the required
 space between colon ":" and value; these are put in for you.  After these
 pre-processing steps, the requirements are parsed just like a job file.
 
-If you need a semicolon in your requirements, or if the automatic adding of a
-space causes problems, try using a full job file.
+If you need a semicolon in your requirements, or if adding a space after colons
+causes problems, try using a full job file.
 
 ### Requirements
 
