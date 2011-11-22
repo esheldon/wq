@@ -134,7 +134,7 @@ is the full list
 
 * mode - The mode of node selection.  Available modes are
  * bycore - Select single cores.  Modifiers like *N* refer to number of cores.
- * bycore1 - Select single cores in a single node.
+ * bycore1 - Select cores from a single node.
  * bynode - Select full nodes.  Modifiers like *N* refer to number of nodes.
  * byhost - Select a particular host by name.  Modifiers like *N* refer to number of cores.
  * bygroup - Select **all** the nodes from particular groups; different from the *group* requirement.
@@ -143,7 +143,7 @@ is the full list
 * notgroup - Select cores or nodes from machines not in the specified group or groups.
 * min_cores - Limit to nodes with at least this many cores.  Currently only applies when mode is *bynode* (should this work for bycore selections?).
 * min_mem - Limit to nodes with at least this much memory in GB.  Currently only applies when mode is *bycore*, *bycore1*, *bynode*.
-* X - This determines of X forwarding is used, default is False. For yes use true,1 for no use false,0
+* X - This determines if ssh X display forwarding is used, default is False. For yes use true,1 for no use false,0
 * priority - Currently should be one of low, med, high.  Higher priority jobs will be queued first.
 * job_name - A name to display in job listings. Usually the command, or an abbreviated form of the command, is shown.
 
