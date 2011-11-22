@@ -145,12 +145,14 @@ is the full list
 * min_mem - Limit to nodes with at least this much memory in GB.  Currently only applies when mode is *bycore*, *bycore1*, *bynode*.
 * X - This determines of X forwarding is used, default is False. For yes use true,1 for no use false,0
 * priority - Currently should be one of low, med, high.  Higher priority jobs will be queued first.
-* job_name - A name to show in job listings. Usually the command, or an abbreviated form, is shown.
+* job_name - A name to display in job listings. Usually the command, or an abbreviated form of the command, is shown.
 
 Here is a full, commented example
 
     # this is the command to be run.
-    command: mycommand
+    command: dostuff -a 35
+
+    job_name: dostuff35 
 
     # this is the type of node/host selection. bynode means select entire nodes.
     mode: bynode
