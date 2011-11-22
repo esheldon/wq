@@ -244,7 +244,7 @@ separated list.  To remove all of your jobs
 
     wq rm all
 
-Only root can remove other jobs for another user.
+Only root can remove jobs for another user.
 
 Starting a Server
 -----------------
@@ -264,7 +264,7 @@ and comma separated.  You can change the port for sockets using -p;
 
 the clients will also need to use that port.
 
-    wq -p sub jobfile
+    wq -p portnum sub jobfile
 
 
 Installation
@@ -279,7 +279,7 @@ You need a fairly recent python and pyyaml <http://pyyaml.org/>
 Get the source, untar it, cd into the created directory, and type this
 to install into the "usual" place
 
-    python setup.py install --prefix=/some/path
+    python setup.py install
 
 To install into a particular prefix
 
