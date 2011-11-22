@@ -60,7 +60,8 @@ def print_stat(status):
         print fmt % l
 
     perc=100.*status['used']/status['ncores']
-    print '\nUsed cores: %i/%i (%3.1f%%)' % (status['used'],status['ncores'],perc)
+    print
+    print 'Used cores: %i/%i (%3.1f%%)' % (status['used'],status['ncores'],perc)
 
 
 def socket_send(conn, mess):
