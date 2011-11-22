@@ -303,7 +303,9 @@ class Job(dict):
         self['spool_wait'] = self.wait_sleep
         if self['status'] in ['ready','run']:
             self['time_run'] = time.time()
-
+        else:
+            self['time_run'] = None
+            
         f=open(fname,'w')
         cPickle.dump(self,f,-1) #highest protocol
         f.close()
