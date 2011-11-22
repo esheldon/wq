@@ -200,9 +200,9 @@ the job list to a particular user or list of users (comma separated).
 Here is an example of a normal listing
 
     Pid   User Status Priority Ncores Nhosts Command t_in      t_run    
-    2530  anze R      med      132    11     source  12h50m27s 12h50m27s
-    3246  anze R      med      104    13     source  12h24m28s 12h24m28s
-    18743 anze W      med      -      -      source  29m52s    -        
+    2530  anze R      med      132    11     runner  12h50m27s 12h50m27s
+    3246  anze R      med      104    13     bash    12h24m28s 12h24m28s
+    18743 anze W      med      -      -      mpirun  29m52s    -        
     Jobs: 3 Running: 2 Waiting: 1
 
 
