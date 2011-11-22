@@ -144,7 +144,11 @@ is the full list
 * min_cores - Limit to nodes with at least this many cores.  Currently only applies when mode is *bynode* (should this work for bycore selections?).
 * min_mem - Limit to nodes with at least this much memory in GB.  Currently only applies when mode is *bycore*, *bycore1*, *bynode*.
 * X - This determines if ssh X display forwarding is used, default is False. For yes use true,1 for no use false,0
-* priority - Currently should be one of low, med, high.  Higher priority jobs will be queued first.
+* priority - Currently should be one of 
+ * low - lowest priority
+ * med - medium priority, the default
+ * high - high priority
+ * block - block other jobs until this one can run.
 * job_name - A name to display in job listings. Usually the command, or an abbreviated form of the command, is shown.
 
 Here is a full, commented example
