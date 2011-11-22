@@ -41,14 +41,17 @@ Submitting Jobs
 ---------------
 
 You can either submit using a job file, written in YAML, or by sending the
-commands as an argument
+commands as an option
 
     wq sub job_file 
-    wq sub -c "commands"
+    wq sub -c command
+
+For example, here is how to run the command "wc file" using a command argument
+
+    wq sub -c "wc file"
 
 The job file contains a "command" and a set of requirements; see the Job Files
 section for more details.  You can also send requirements using -r/--require
-
     
     wq sub -r "requirements" job_file
     wq sub -r "requirements" -c "commands"
