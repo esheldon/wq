@@ -1,4 +1,4 @@
-A simple work queue that actually works
+A simple work queue.
 
 Description
 -----------
