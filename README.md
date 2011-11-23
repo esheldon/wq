@@ -149,7 +149,7 @@ is the full list
  * high - high priority
  * block - block other jobs until this one can run.
 * job_name - A name to display in job listings. Usually the command, or an abbreviated form of the command, is shown.
-* hostfile - which file to save allocated nodes
+* hostfile - An optional file in which to save allocated node names. Useful for MPI jobs using mpirun.
 
 
 Here is a full, commented example
