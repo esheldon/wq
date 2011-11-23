@@ -99,8 +99,8 @@ list. You can also specify lists using note-taking notation
 Don't forget the space between dash "-" and value. See the Requirements
 sub-section for a full list of requirements
 
-The command can actually be a full script.  All you have to is put a |
-after command and then indent the lines.  For example
+The command can actually be a full script.  All you have to is put a pipe
+symbol "|" after command: and then indent the lines.  For example
 
     command: |
         source ~/.bashrc
