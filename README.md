@@ -211,6 +211,7 @@ Tips and Tricks
   by "exit". This will free up the slot when you finish.  
 
     wq sub -c screen
+
     command1; command2; exit
 
 Getting Statistics For the Cluster and Queue
