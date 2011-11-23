@@ -208,8 +208,8 @@ Tips and Tricks
 * If you don't want to submit a batch job in the background using nohup, you
   can start run the command "screen" and then run a command series that is
   followed by "exit". This will free up the slot when you finish.  
- * wq sub -c screen
- * command1; command2; exit
+ *     wq sub -c screen
+ *     command1; command2; exit
 
 Getting Statistics For the Cluster and Queue
 --------------------------------------------
