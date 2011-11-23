@@ -208,6 +208,7 @@ Tips and Tricks
 
   You can also just run a script that sets up your environment and runs the
   command.
+
 * If you don't want to submit a batch job in the background using nohup, you
   can run the command "screen" and then run a command series that is followed
   by "exit". This will free up the slot when you finish.  
