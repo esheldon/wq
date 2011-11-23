@@ -149,6 +149,8 @@ is the full list
  * high - high priority
  * block - block other jobs until this one can run.
 * job_name - A name to display in job listings. Usually the command, or an abbreviated form of the command, is shown.
+* hostfile - which file to save allocated nodes
+
 
 Here is a full, commented example
 
@@ -172,6 +174,14 @@ Here is a full, commented example
 
     # require at least this many cores
     min_cores: 8
+
+Running an MPI code
+-------------------
+
+To run an MPI code, get hostnames through the hostfile requirement, e.g.
+
+wq -r "N:16;hostfile:hfile" -c "mpirun -hostfile hfile ./mycode"
+
 
 
 Getting an interactive shell on a worker node
