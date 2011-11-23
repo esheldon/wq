@@ -99,6 +99,14 @@ list. You can also specify lists using note-taking notation
 Don't forget the space between dash "-" and value. See the Requirements
 sub-section for a full list of requirements
 
+The command can actually be a full script.  All you have to is put a |
+after command and then indent the lines.  For example
+
+    command: |
+        source ~/.bashrc
+        cd ~/mydata
+        cat data.txt | awk '{print $3}' > list.txt
+
 ### specifying comands as arguments
 
 In addition to using job files, you can run a command by specifying -c and an
@@ -155,12 +163,17 @@ is the full list
 Here is a full, commented example
 
     # this is the command to be run.
-    command: dostuff -a 35
+    command: |
+        source ~/.bashrc
+        mpirun -hostfile hfile ./program
+
+    hostfile: hfile
 
     # show this name in job listings instead of the command
     job_name: dostuff35 
 
-    # this is the type of node/host selection. bynode means select entire nodes.
+    # this is the type of node/host selection. bynode means select entire
+    # nodes.
     mode: bynode
 
     # Since the mode is bynode, this means 5 full nodes
