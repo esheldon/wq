@@ -80,9 +80,17 @@ The job files and requirements are all in YAML syntax
 
     command: dostuff -i /some/input -o /some/output
 
-Don't forget the space between the colon ":" and the value.  You can also put
-requirements in the job file.  For example, to grab 3 cores and only use  nodes
-from groups gen1 and gen2, but not group slow
+Don't forget the space between the colon ":" and the value.  The command can
+actually be a full script.  All you have to is put a pipe symbol "|" after
+command: and then indent the lines.  For example
+
+    command: |
+        source ~/.bashrc
+        cd ~/mydata
+        cat data.txt | awk '{print $3}' > list.txt
+
+You can also put requirements in the job file.  For example, to grab 3 cores
+and only use  nodes from groups gen1 and gen2, but not group slow
 
     command: dostuff -i /some/input -o /some/output
     N: 3
@@ -99,13 +107,6 @@ list. You can also specify lists using note-taking notation
 Don't forget the space between dash "-" and value. See the Requirements
 sub-section for a full list of requirements
 
-The command can actually be a full script.  All you have to is put a pipe
-symbol "|" after command: and then indent the lines.  For example
-
-    command: |
-        source ~/.bashrc
-        cd ~/mydata
-        cat data.txt | awk '{print $3}' > list.txt
 
 ### specifying comands as arguments
 
