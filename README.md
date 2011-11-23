@@ -346,3 +346,10 @@ To install into a particular prefix
     python setup.py install --prefix=/some/path
 
 
+Authors
+-------
+
+In alphabetical order:
+
+    Erin Sheldon erin dot sheldon at gmail dot com
+    Anze Slosar anze at bnl dot gov
