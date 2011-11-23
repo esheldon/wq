@@ -349,7 +349,5 @@ To install into a particular prefix
 Authors
 -------
 
-In alphabetical order:
-
-    Erin Sheldon erin dot sheldon at gmail dot com
-    Anze Slosar anze at bnl dot gov
+Erin Sheldon: erin dot sheldon at gmail dot com
+Anze Slosar: anze at bnl dot gov
