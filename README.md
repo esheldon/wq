@@ -205,7 +205,6 @@ Tips and Tricks
   by sourcing your startup script. e.g. 
 
         wq sub -c "source ~/.bashrc; command"
-
   You can also just run a script that sets up your environment and runs the
   command.
 
