@@ -212,7 +212,6 @@ Tips and Tricks
   can run the command "screen" and then run a command series that is followed
   by "exit". This will free up the slot when you finish.  
 
-
         wq sub -c screen
         command1; command2; exit
 
