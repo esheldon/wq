@@ -162,7 +162,10 @@ is the full list
 
 Here is a full, commented example
 
-    # this is the command to be run.
+    # these are the commands to be run.  if you only have a 
+    # single command, you can use a single line such as 
+    # command: ./script
+
     command: |
         source ~/.bashrc
         mpirun -hostfile hfile ./program
