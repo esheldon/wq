@@ -175,12 +175,12 @@ Here is a full, commented example
     # require at least this many cores
     min_cores: 8
 
-Running an MPI code
--------------------
+### running an MPI code
+
 
 To run an MPI code, get hostnames through the hostfile requirement, e.g.
 
-wq -r "N:16;hostfile:hfile" -c "mpirun -hostfile hfile ./mycode"
+    wq -r "N:16;hostfile:hfile" -c "mpirun -hostfile hfile ./mycode"
 
 
 
