@@ -194,6 +194,21 @@ to send the X requirement.  e.g.
     wq sub -c bash
     wq sub -r "X:1" -c bash
 
+Note you can use tcsh if that is your login shell.  In this scenario, your
+environment will be set up as normal.
+
+Tips and Tricks
+---------------
+
+* Normally your environment is not set up when you run a command unless
+  the command is a login shell like "bash".  You can get your setup byu
+  sourcing your startup script. e.g. 
+ * wq sub -c "source ~/.bashrc; command"
+
+* you can start an interactive session and run a command series that is
+  followed by "exit". This will free up node when you finish.
+ * wq sub -c bash
+   command; exit
 
 Getting Statistics For the Cluster and Queue
 --------------------------------------------
