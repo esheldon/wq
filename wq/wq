@@ -119,9 +119,11 @@ class Lister(dict):
         if self.full:
             if self.user is not None:
                 show=[r for r in resp['response'] if r['user'] in self.user]
-                print yaml.dump(show)
             else:
-                print yaml.dump(resp['response'])
+                show = resp['response']
+            if len(show) > 0:
+                print yaml.dump(show)
+
             return
 
         hname='nhosts'
