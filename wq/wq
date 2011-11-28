@@ -85,13 +85,12 @@ class Lister(dict):
     """
     usage: wq ls [options]
 
-    print the jobs in the queue to stdout.  If -f/--full is sent, the full
-    command line is displayed and the full host list is displayed.  Normally,
-    only the first part of the command is shown, and only the number of hosts
-    is shown.  If -u/--user is sent, the listing is restricted to that
-    user/users.
+    print the job list to stdout.  
+    
+    If -u/--user is sent, the listing is restricted to that user/users.
 
-    """
+    If -f/--full is sent, the full job listing is given.  This is a yaml
+    document that can be read and processed to provide a customised listing.\n"""
 
     def __init__(self, args):
         #Command.__init__(self, args)
@@ -102,7 +101,7 @@ class Lister(dict):
         parser.add_option("-u", "--user", default=None, 
                           help="Only list jobs for the user.  can be a comma separated list")
         parser.add_option("-f", "--full", action='store_true',
-                          help="Give a full job listing")
+                          help="Give a full job listing as a YAML stream.")
 
         options, args = parser.parse_args(args)
         self.user = options.user
@@ -118,10 +117,14 @@ class Lister(dict):
 
 
         if self.full:
-            print yaml.dump(resp['response'])
+            if self.user is not None:
+                show=[r for r in resp['response'] if r['user'] in self.user]
+                print yaml.dump(show)
+            else:
+                print yaml.dump(resp['response'])
             return
-        else:
-            hname='nhosts'
+
+        hname='nhosts'
         names = ['pid','user','status','priority','ncores',hname,'command','time_sub','time_run']
 
         lens={}
