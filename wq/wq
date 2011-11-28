@@ -734,7 +734,7 @@ def main():
         # to head or something
         es=sys.exc_info()
         if 'Broken pipe' not in es[1]:
-            sys.stderr.write('caught exception type: %s  details: %s' % (es[0],es[1]))
+            sys.stderr.write('caught exception type: %s  details: %s\n' % (es[0],es[1]))
     finally:
         # this helps with pipes, needed in addition to above catch of IOError
         try:
