@@ -10,7 +10,7 @@ The groups are optional comma separated list.
 
 import socket
 import signal
-import json
+import yaml
 import time
 import copy
 import sys
@@ -143,11 +143,11 @@ class Server:
                     break
 
                 try:
-                    message =json.loads(data)
-                    print 'got JSON request:',message
+                    message = yaml.load(data)
+                    print 'got YAML request:',message
                 except:
-                    ret = {"error":"could not process JSON request: '%s'" % data}
-                    ret = json.dumps(ret)
+                    ret = {"error":"could not process YAML request: '%s'" % data}
+                    ret = yaml.dump(ret)
                     conn.send(ret)
                     break
 
@@ -155,15 +155,15 @@ class Server:
                 response = self.queue.get_response()
 
                 try:
-                    json_response = json.dumps(response)
+                    yaml_response = yaml.dump(response)
                 except:
-                    err = {"error":"server error creating JSON response from '%s'" % ret}
-                    json_response = json.dumps(err)
+                    err = {"error":"server error creating YAML response from '%s'" % ret}
+                    yaml_response = yaml.dump(err)
 
                 # timeout mode is non-blocking under the hood, can't use
                 # sendall but we wouldn't want the exception possibility anyway
-                print 'response:',json_response
-                socket_send(conn, json_response)
+                print 'response:',yaml_response
+                socket_send(conn, yaml_response)
 
                 print 'closing conn'
                 conn.close()
@@ -179,7 +179,6 @@ class Server:
             self.sock.shutdown(socket.SHUT_RDWR)
             print 'close'
             self.sock.close()
-
 
 
 class Node:

@@ -25,7 +25,7 @@ e.g.
 
 import socket
 import sys
-import json
+import yaml
 import os
 import signal 
 import wq
@@ -102,7 +102,7 @@ class Lister(dict):
         parser.add_option("-u", "--user", default=None, 
                           help="Only list jobs for the user.  can be a comma separated list")
         parser.add_option("-f", "--full", action='store_true',
-                          help="Give a more detailed listing")
+                          help="Give a full job listing")
 
         options, args = parser.parse_args(args)
         self.user = options.user
@@ -118,7 +118,8 @@ class Lister(dict):
 
 
         if self.full:
-            hname='hosts'
+            print yaml.dump(resp['response'])
+            return
         else:
             hname='nhosts'
         names = ['pid','user','status','priority','ncores',hname,'command','time_sub','time_run']
@@ -150,10 +151,7 @@ class Lister(dict):
                 this['time_sub'] = self._get_time_in(r,timenow)
                 this['time_run'] = self._get_time_run(r,timenow)
 
-                if self.full:
-                    this['hosts'] = self._get_hosts(r)
-                else:
-                    this['nhosts'] = self._get_nhosts(r)
+                this['nhosts'] = self._get_nhosts(r)
                 
                 for k in this:
                     lens[k] = max(lens[k], len(('%s' % this[k])))
@@ -221,6 +219,9 @@ class Lister(dict):
 
 
     def _get_hosts(self, r):
+        """
+        this is obsolete
+        """
         if r['status'] != 'run':
             return '-'
 
@@ -431,7 +432,6 @@ class Submitter(dict):
         self['require'] = reqs
 
     def _process_job_file(self, fname):
-        import yaml
 
         reqs = yaml.load(open(fname))
         if 'command' not in reqs:
@@ -444,7 +444,6 @@ class Submitter(dict):
         return commandline, reqs
 
     def _process_require_opt(self, require_opt):
-        import yaml
         import re
 
         reqs={}
@@ -481,7 +480,7 @@ class Submitter(dict):
         self.message['notification']='done'
         #sres = send_message(self.message, timeout=SOCK_TIMEOUT, crash_on_timeout=True)
         sres = send_message(self.message)
-        print sres
+        self.print_res(sres)
         exit(0)
                                         
     def make_command_list(self, target_machine, command, require):
@@ -578,7 +577,14 @@ class Submitter(dict):
         # the missing pid
         #sres = send_message(self.message, timeout=SOCK_TIMEOUT, crash_on_timeout=True)
         sres = send_message(self.message)
-        print sres
+        self.print_res(sres)
+
+    def print_res(self, res):
+        import pprint
+        for k in res:
+            kk = k+': '
+            pf = pprint.pformat(res[k])
+            print '%-15s %s' % (kk,pf)
 
 def socket_connect(sock, conninfo, crash_on_timeout=False):
     # crash will only happen if timeouts have been enabled, otherwise we just
@@ -621,7 +627,7 @@ def send_message(message, timeout=None, crash_on_timeout=False):
 
     rdict=None
     try:
-        jmess=json.dumps(message)
+        jmess=yaml.dump(message)
 
         wq.server.socket_send(sock, jmess)
         data = wq.server.socket_recieve(sock, pars['max_buffsize'])
@@ -629,9 +635,9 @@ def send_message(message, timeout=None, crash_on_timeout=False):
         sock.close()
 
         try:
-            rdict = json.loads(data)
+            rdict = yaml.load(data)
         except:
-            print 'json err:'
+            print 'YAML err:'
             print data
             sys.exit(1)
 
@@ -728,7 +734,13 @@ def main():
         # to head or something
         es=sys.exc_info()
         if 'Broken pipe' not in es[1]:
-            raise e
+            sys.stderr.write('caught exception type: %s  details: %s' % (es[0],es[1]))
+    finally:
+        # this helps with pipes, needed in addition to above catch of IOError
+        try:
+            sys.stdout.flush()
+        except:
+            pass
 
 if __name__=="__main__":
     main()
