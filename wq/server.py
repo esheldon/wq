@@ -138,13 +138,13 @@ class Server:
 
                 data = socket_recieve(conn, self.buffsize)
 
-                # hmmm.. empty message, should we really dump out?
+                # hmmm.. empty message, should we really skip?
                 if not data: 
                     continue
 
+                print 'got YAML request:',data
                 try:
                     message = yaml.load(data)
-                    print 'got YAML request:',message
                 except:
                     ret = {"error":"could not process YAML request: '%s'" % data}
                     ret = yaml.dump(ret)
