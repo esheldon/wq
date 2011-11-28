@@ -723,6 +723,12 @@ def main():
         cmd_obj.execute()
     except KeyboardInterrupt:
         pass
+    except IOError, e:
+        # this is most certainly a "broken pipe" type error when someone pipes
+        # to head or something
+        es=sys.exc_info()
+        if 'Broken pipe' not in es[1]:
+            raise e
 
 if __name__=="__main__":
     main()
