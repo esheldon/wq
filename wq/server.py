@@ -140,7 +140,7 @@ class Server:
 
                 # hmmm.. empty message, should we really dump out?
                 if not data: 
-                    break
+                    continue
 
                 try:
                     message = yaml.load(data)
@@ -149,7 +149,7 @@ class Server:
                     ret = {"error":"could not process YAML request: '%s'" % data}
                     ret = yaml.dump(ret)
                     conn.send(ret)
-                    break
+                    continue
 
                 self.queue.process_message(message)
                 response = self.queue.get_response()
