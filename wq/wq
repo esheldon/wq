@@ -389,28 +389,28 @@ class Submitter(dict):
     usage: wq sub [options] [args]
 
     There are three modes.  Note you can add -r/--require to each of these
-    except batch mode.  -r/--require will over-ride requirements in job files.
+    *except* batch mode.  -r/--require will over-ride requirements in job files.
 
-        1) Submit a job file
+        - Send a command as an argument.
 
-            wq sub job_file
+                wq sub -c command
 
-        The job stays in the foreground unless you put it in the background
-        explicitly.  See method 2 for a better way to do this.
+          The command is just a string.  You probably want to double quote it.
 
-        2) Submit one or more job files in batch mode.
+        - Submit a job file
 
-            wq sub -b job_file1 job_file2 ....
+                wq sub job_file
 
-        Each job will be submitted in the background.  This is better than
-        running wq sub separately for each job, since care is taken not to
-        overload the server.
+          The job stays in the foreground, so this is only useful for
+          interactive jobs where you need to specify complex job requirements.
 
-        3) Send a command as an argument.
+        - Submit one or more job files in batch mode.
 
-            wq sub -c command
+                wq sub -b job_file1 job_file2 ....
 
-        The command is just a string.  You probably want to double quote it.
+          Each job will be submitted in the background.  This is the preferred
+          method for non-interactive jobs.
+
     """
     def __init__(self, args):
         self._process_args(args)
