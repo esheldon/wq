@@ -50,18 +50,18 @@ def print_stat(status):
             lens[n] = max(lens[n],len(l[n]))
         lines.append(l)
 
-    fmt = '%(usage)-'+str(lens['usage'])+'s  %(host)-'+str(lens['host'])+'s '
-    fmt += '%(mem)'+str(lens['mem'])+'s %(groups)-'+str(lens['groups'])+'s'
+    fmt = ' %(usage)-'+str(lens['usage'])+'s  %(host)-'+str(lens['host'])+'s '
+    fmt += ' %(mem)'+str(lens['mem'])+'s %(groups)-'+str(lens['groups'])+'s'
     hdr={}
     for k in lens:
-        hdr[k]=k
+        hdr[k]=k.capitalize()
     print fmt % hdr
     for l in lines:
         print fmt % l
 
     perc=100.*status['used']/status['ncores']
     print
-    print 'Used cores: %i/%i (%3.1f%%)' % (status['used'],status['ncores'],perc)
+    print ' Used cores: %i/%i (%3.1f%%)' % (status['used'],status['ncores'],perc)
 
 
 def socket_send(conn, mess):

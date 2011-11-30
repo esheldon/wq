@@ -126,7 +126,7 @@ class Lister(dict):
 
             return
 
-        names = ['pid','user','st','pri','nc','nh','host0','time_sub','time_run','cmd']
+        names = ['pid','user','st','pri','nc','nh','host0','Tq','Trun','cmd']
 
         lens={}
         for k in names:
@@ -152,8 +152,8 @@ class Lister(dict):
                 this['nc'] = self._get_ncores(r)
                 # this may replace command with job_name, if it exists
                 this['cmd'] = self._get_command(r)
-                this['time_sub'] = self._get_time_in(r,timenow)
-                this['time_run'] = self._get_time_run(r,timenow)
+                this['Tq'] = self._get_time_in(r,timenow)
+                this['Trun'] = self._get_time_run(r,timenow)
 
                 this['nh'] = self._get_nhosts(r)
 
@@ -167,7 +167,7 @@ class Lister(dict):
 
         fmt = []
         for k in names:
-            if k in ['time_sub','time_run']:
+            if k in ['Tq','Trun']:
                 align=''
             else:
                 align='-'
@@ -181,7 +181,7 @@ class Lister(dict):
             print fmt % {'pid':'Pid','user':'User',
                          'st':'St', 'pri':'Pri', 'nc':'Nc',
                          'nh':'Nh','host0':'Host0',
-                         'cmd':'Cmd','time_sub':'Tq','time_run':'Trun'}
+                         'cmd':'Cmd','Tq':'Tq','Trun':'Trun'}
         for l in lines:
             print fmt % l
 
