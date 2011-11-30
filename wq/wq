@@ -388,39 +388,62 @@ class Submitter(dict):
     """
     usage: wq sub [options] [args]
 
-    two basic modes:
-        1) 
-            wq sub -r require job_file
+    There are three modes.  Note you can add -r/--require to each of these
+    except batch mode.  -r/--require will over-ride requirements in job files.
 
-        Where job_file is in YAML format and has a command and a set of
-        requirements.  -r/--require will over-ride requirements in the job
-        file.  the long form of -r is --require
+        1) Submit a job file
 
-        2)
-            wq sub -r require -c command
+            wq sub job_file
+
+        The job stays in the foreground unless you put it in the background
+        explicitly.  See method 2 for a better way to do this.
+
+        2) Submit one or more job files in batch mode.
+
+            wq sub -b job_file1 job_file2 ....
+
+        Each job will be submitted in the background.  This is better than
+        running wq sub separately for each job, since care is taken not to
+        overload the server.
+
+        3) Send a command as an argument.
+
+            wq sub -c command
 
         The command is just a string.  You probably want to double quote it.
     """
     def __init__(self, args):
-        #Command.__init__(self, args)
         self._process_args(args)
 
     def _process_args(self, args):
         parser=OptionParser(Submitter.__doc__)
         parser.add_option("-r", "--require", default=None, help="optional requirements for job")
+        parser.add_option("-b", "--batch", action='store_true', help="Submit jobs in batch mode.")
         parser.add_option("-c", "--command", default=None, help="The command to run as a string")
 
         options, args = parser.parse_args(args)
 
         self['require_opt'] = options.require
 
-        if len(args) > 0:
+        # batch mode is special; just store the job files and let
+        # execute() deal properly with them
+        self.isbatch=False
+        if len(args) > 0 and options.batch:
+            # we just store the files and later run them when
+            # execute is done
+            self.isbatch=True
+            self.job_files = args[:]
+            return
+
+        if options.command is not None:
+            commandline = options.command
+            reqs = {}
+        elif len(args) > 0:
             # a job file was sent
             job_file = args[0]
             commandline, reqs = self._process_job_file(job_file)
         else:
-            commandline = options.command
-            reqs = {}
+            raise ValueError
         
 
         if commandline is None:
@@ -435,6 +458,27 @@ class Submitter(dict):
 
         self['commandline'] = commandline
         self['require'] = reqs
+
+    def _batch_submit_joblist(self, job_files):
+        njob = len(job_files)
+        for f in job_files:
+            self._batch_submit_job(f)
+            if njob > 1:
+                time.sleep(1)
+
+    def _batch_submit_job(self, job_file):
+        """
+        For batch mode we call wq again with a single job file and
+        no requirements
+        """
+
+        print 'submitting',job_file,
+        log_file = open(job_file+'.wqlog', 'w')
+        p=subprocess.Popen(['nohup','wq','sub',job_file], 
+                           env=os.environ,
+                           stderr=subprocess.STDOUT, 
+                           stdout=log_file)
+        print 'pid:',p.pid
 
     def _process_job_file(self, fname):
 
@@ -521,6 +565,11 @@ class Submitter(dict):
 
         For MPI jobs, a host file can be created.
         """
+
+        if self.isbatch:
+            self._batch_submit_joblist(self.job_files)
+            return
+
         message = {}
         message['command'] = 'sub'
         message['pid'] = os.getpid()

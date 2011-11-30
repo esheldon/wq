@@ -12,8 +12,7 @@ scheduled to run, the client logs into the appropriate node using ssh and then
 executes the job.
 
 For best results, users should have ssh keys and an ssh agent running to allow
-ssh login to the nodes without typing their pass-phrase.  When submitting many
-jobs, it is appropriate to use "nohup" and put the client in the background.
+ssh login to the nodes without typing their pass-phrase.
 
 The only queue currently supported is a very simple matching queue with
 priorities.  This is **very** simple: jobs are put in the queue in order they
@@ -44,32 +43,28 @@ You can either submit using a job file, written in YAML, or by sending the
 commands as an option
 
     wq sub job_file 
+    wq sub -b job_file1 job_file2 ...
     wq sub -c command
 
 The job file contains a "command" and a set of requirements; see the Job Files
-section for more details.  You can also send requirements using -r/--require
+section for more details.  
+
+If -b/--batch is sent, the job or jobs are submitted in batch mode in the
+**background** instead of the foreground as when using -c or a job file without
+the -b flag.  When submitting multiple files, a short delay is observed between
+submissions to prevent overloading the server. 
+
+When not using batch mode, you can also send requirements using -r/--require
     
     wq sub -r requirements job_file
     wq sub -r requirements -c command
 
-Requirements sent using -r will over-ride those in the job file.  For
-a list of available requirements fields, see the Requirements sub-section.
+Requirements sent using -r will over-ride those in the job file.  Note -r is
+not supported for batch submission. For a list of available requirements
+fields, see the Requirements sub-section.
 
 Note if you need to keep the outputs of your command, you need to redirect them
 to files yourself.
-
-### Putting Jobs in the Background
-
-You may want to submit a large number of jobs at once.  This is most convenient
-if the jobs go into the background.  The best way to do this is using nohup and
-redirecting the output to a file.  This puts stdout/stderr into a logfile
-
-    nohup wq sub job_file &> logfile  &
-
-As shown above, when using nohup, you should redirect the wq outputs to files;
-otherwise the output will just go to a file called nohup.out in your current
-working directory.  Note this output is just the output of the wq script; your
-commands should take care of their own stdout/stdin.
 
 
 ###  Job Files
@@ -225,7 +220,7 @@ Tips and Tricks
   You can also just run a script that sets up your environment and runs the
   command.
 
-* If you don't want to submit a batch job in the background using nohup, you
+* If you don't want to submit a batch job in the background using -b, you
   can run the command "screen" and then run a command series that is followed
   by "exit". This will free up the slot when you finish.  
 
