@@ -237,7 +237,6 @@ can read the YAML from this stream and process it as you wish. Send -u/--user
 to restrict the job list to a particular user or list of users (comma
 separated).
 
-
     wq ls
     wq ls -f
     wq ls -u username
@@ -245,12 +244,17 @@ separated).
 
 Here is an example of a normal listing
 
-    Pid   User Status Priority Ncores Nhosts Command t_in      t_run    
-    2530  anze R      med      132    11     runner  12h50m27s 12h50m27s
-    3246  anze R      med      104    13     bash    12h24m28s 12h24m28s
-    18743 anze W      med      -      -      mpirun  29m52s    -        
-    Jobs: 3 Running: 2 Waiting: 1
+ Pid   User St Pri Nc Nh Host0            Tq      Trun Cmd     
+ 29939 anze R  med 2  1  astro0029 15h09m58s 15h09m58s run23
+ 29944 anze W  low -  -  -         15h09m42s         - mock_4_5
+ 29950 anze R  med 2  1  astro0010 15h09m18s 12h42m55s run75
+ Jobs: 3 Running: 2 Waiting: 1
 
+Pid is the process id, St is the status (W for waiting, R for running), Pri is
+the priority, Nc is the number of cores, Nh is the number of hosts/nodes, Host0
+is the first host in the hosts list, Tq is the time the job has been in the
+queue, Trun is the time it has been running, and Cmd is the job_name, if given
+in the requirements, otherwise it is the first word in the command line.
 
 ### Cluster and Queue Status
 
