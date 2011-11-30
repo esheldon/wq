@@ -126,8 +126,7 @@ class Lister(dict):
 
             return
 
-        hname='nhosts'
-        names = ['pid','user','status','priority','ncores',hname,'command','time_sub','time_run']
+        names = ['pid','user','st','pri','nc','nh','host0','time_sub','time_run','cmd']
 
         lens={}
         for k in names:
@@ -148,15 +147,18 @@ class Lister(dict):
                 this={}
                 this['pid'] = r['pid']
                 this['user'] = r['user']
-                this['priority'] = r['priority']
-                this['status'] = self._get_status(r)
-                this['ncores'] = self._get_ncores(r)
+                this['pri'] = r['priority']
+                this['st'] = self._get_status(r)
+                this['nc'] = self._get_ncores(r)
                 # this may replace command with job_name, if it exists
-                this['command'] = self._get_command(r)
+                this['cmd'] = self._get_command(r)
                 this['time_sub'] = self._get_time_in(r,timenow)
                 this['time_run'] = self._get_time_run(r,timenow)
 
-                this['nhosts'] = self._get_nhosts(r)
+                this['nh'] = self._get_nhosts(r)
+
+                # this is the first host on the list
+                this['host0'] = self._get_host0(r)
                 
                 for k in this:
                     lens[k] = max(lens[k], len(('%s' % this[k])))
@@ -165,7 +167,11 @@ class Lister(dict):
 
         fmt = []
         for k in names:
-            fmt.append('%('+k+')-'+str(lens[k])+'s')
+            if k in ['time_sub','time_run']:
+                align=''
+            else:
+                align='-'
+            fmt.append('%('+k+')'+align+str(lens[k])+'s')
         fmt = ' '.join(fmt)
         fmt = ' '+fmt
 
@@ -173,8 +179,9 @@ class Lister(dict):
         # this is the header for each column
         if len(lines) > 0:
             print fmt % {'pid':'Pid','user':'User',
-                         'status':'Status', 'priority':'Priority', 'ncores':'Ncores',
-                         hname:hname.capitalize(),'command':'Command','time_sub':'t_in','time_run':'t_run'}
+                         'st':'St', 'pri':'Pri', 'nc':'Nc',
+                         'nh':'Nh','host0':'Host0',
+                         'cmd':'Cmd','time_sub':'t_in','time_run':'t_run'}
         for l in lines:
             print fmt % l
 
@@ -205,10 +212,10 @@ class Lister(dict):
         if (nd>0):
             r+=str(nd)+'d'
         if (nh>0):
-            r+=str(nh)+'h'
+            r+='%02dh' % nh
         if (nm>0):
-            r+=str(nm)+'m'
-        r+=str(ns)+'s'
+            r+='%02dm' % nm
+        r+='%02ds' % ns
         return r
                   
 
@@ -222,6 +229,17 @@ class Lister(dict):
         else:
             return '-'
 
+    def _get_host0(self, r):
+        """
+        Get the first host in the list
+        """
+        if r['status'] != 'run':
+            return '-'
+
+        if not r['hosts']:
+            return '-'
+        else:
+            return r['hosts'][0]
 
     def _get_hosts(self, r):
         """
@@ -263,13 +281,17 @@ class Lister(dict):
 
     def _get_command(self, r):
         if 'job_name' in r['require']:
-            return r['require']['job_name']
-
-        if self.full:
-            return r['commandline']
+            c = r['require']['job_name']
         else:
-            return r['commandline'].split()[0]
+            if self.full:
+                c = r['commandline']
+            else:
+                c = r['commandline'].split()[0]
 
+        # remove spaces from name so we can use awk on
+        # the output of wq ls
+        c = '-'.join(str(c).split())
+        return c
 class Stats(dict):
     """
     usage: wq stat
