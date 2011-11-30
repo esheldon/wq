@@ -314,7 +314,9 @@ The format is
 
 
 The mem is in gigabytes, and can be floating point.  The groups are optional
-and comma separated.  You can change the port for sockets using -p; 
+and comma separated.  
+
+You can change the port for sockets using -p; 
 
     wq -p portnum serve descfile
 
