@@ -50,9 +50,9 @@ A job file contains a "command" and a set of requirements; see the Job Files
 section for more details.  
 
 If -b/--batch is sent, the job or jobs are submitted in batch mode in the
-**background**, whereas normaly jobs are kept in the foreground.  When
-submitting multiple files, a short delay is observed between submissions to
-prevent overloading the server. 
+**background**, whereas normaly jobs are kept in the foreground.  Batch mode
+also allows submission of multiple jobs. When submitting multiple jobs, a short
+delay is observed between submissions to prevent overloading the server. 
 
 When not using batch mode, you can also send requirements using -r/--require
     
@@ -65,18 +65,17 @@ available requirements fields, see the Requirements sub-section.
 Note if you need to keep the outputs of your command, you need to redirect them
 to files yourself.
 
-
 ###  Job Files
 
 The job files and requirements are all in YAML syntax
 <http://en.wikipedia.org/wiki/YAML>.  For example, to run the command "dostuff
 -i /some/input -o /some/output on a single core, this would be the job file
 
-    command: dostuff -i /some/input -o /some/output
+    command: dostuff 1> dostuff.out 2> dostuff.err
 
 Don't forget the space between the colon ":" and the value.  The command can
-actually be a full script.  All you have to is put a pipe symbol "|" after
-command: and then indent the lines.  For example
+actually be a full script.  All you have to is put a **pipe symbol "|"** after
+command: and then **indent the lines**.  For example
 
     command: |
         source ~/.bashrc
@@ -86,7 +85,7 @@ command: and then indent the lines.  For example
 You can also put requirements in the job file.  For example, to grab 3 cores
 and only use  nodes from groups gen1 and gen2, but not group slow
 
-    command: dostuff -i /some/input -o /some/output
+    command: dostuff 1> dostuff.out 2> dostuff.err
     N: 3
     group: [gen1, gen3]
     notgroup: slow
