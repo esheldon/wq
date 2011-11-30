@@ -132,6 +132,20 @@ class Server:
         self.open_socket()
         self.sock.listen(1)
         try:
+            self.doconn()
+        except KeyboardInterrupt:
+            pass
+        except:
+            es=sys.exc_info()
+            print 'caught exception type:', es[0],'details:',es[1]
+        finally:
+            print 'shutdown'
+            self.sock.shutdown(socket.SHUT_RDWR)
+            print 'close'
+            self.sock.close()
+
+    def doconn(self):
+        try:
             while True:
 
                 conn, addr = self.wait_for_connection()
@@ -168,19 +182,14 @@ class Server:
                 print 'closing conn'
                 conn.close()
                 conn=None
-
-        except KeyboardInterrupt:
-            pass
-        except:
+        except socket.error, e:
             es=sys.exc_info()
-            print 'caught exception type:', es[0],'details:',es[1]
-        finally:
-            print 'shutdown'
-            self.sock.shutdown(socket.SHUT_RDWR)
-            print 'close'
-            self.sock.close()
-
-
+            if 'Broken pipe' in es[1]:
+                # this happens sometimes when someone ctrl-c in the middle
+                # of talking with the server
+                pass
+            else:
+                raise e
 class Node:
     def __init__ (self, line):
         ls = line.split()
