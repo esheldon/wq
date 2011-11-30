@@ -251,6 +251,26 @@ class Cluster:
         return res
 
 
+def _get_dict_int(d, key, default):
+    reason=''
+    try:
+        N = int(d.get(key, default))
+    except:
+        N = None
+        print 'failure'
+        reason = "failed to extract int requirement '%s': %s" % (key,sys.exc_info()[1])
+    return N, reason
+
+def _get_dict_float(d, key, default):
+    reason=''
+    try:
+        f = float(d.get(key, default))
+    except:
+        f = None
+        reason = "failed to extract float requirement '%s': %s" % (key,sys.exc_info()[1])
+    return f, reason
+
+
 
 class Job(dict):
 
@@ -359,13 +379,13 @@ class Job(dict):
 
     def _get_req_list(self, reqs, key):
         """
-        Can either send 'v1,v2,v3' as a string or an actual list [v1,v2,v3]
-        Will be converted to a list
+        If a scalar is found, itis converted to a list using [val]
         """
         val = reqs.get(key,[])
         if not isinstance(val, list):
             val = [val]
         return val
+
 
     def _match_bycore(self, cluster):
 
@@ -376,13 +396,18 @@ class Job(dict):
 
         reqs = self['require']
 
-        N = int(reqs.get('N', 1))
+        N,reason=_get_dict_int(reqs, 'N', 1)
+        if reason:
+            return pmatch, match, hosts, reason
         Np=N
+
+        min_mem, reason = _get_dict_float(reqs,'min_mem',0.0)
+        if reason:
+            return pmatch, match, hosts, reason
 
         for h in cluster.nodes:
             nd = cluster.nodes[h]
 
-            min_mem = float(reqs.get('min_mem',0.0))
             if nd.mem < min_mem:
                 continue
 
@@ -425,7 +450,7 @@ class Job(dict):
                     hosts.append(h)
 
         if (not pmatch):
-            reason = 'Not enough total cores satistifying condition.'
+            reason = 'Not enough cores or mem satistifying condition.'
         elif (not match):
             reason = 'Not enough free cores.'
     
@@ -445,13 +470,18 @@ class Job(dict):
 
         reqs = self['require']
 
-        N = int(reqs.get('N', 1))
+        N,reason=_get_dict_int(reqs, 'N', 1)
+        if reason:
+            return pmatch, match, hosts, reason
         Np=N
+
+        min_mem, reason = _get_dict_float(reqs,'min_mem',0.0)
+        if reason:
+            return pmatch, match, hosts, reason
 
         for h in cluster.nodes:
             nd = cluster.nodes[h]
 
-            min_mem = float(reqs.get('min_mem',0.0))
             if nd.mem < min_mem:
                 continue
 
@@ -512,17 +542,26 @@ class Job(dict):
 
         reqs = self['require']
 
-        N = int(reqs.get('N', 1))
+        N,reason=_get_dict_int(reqs, 'N', 1)
+        if reason:
+            return pmatch, match, hosts, reason
+
         Np=N
+
+        min_mem, reason = _get_dict_float(reqs,'min_mem',0.0)
+        if reason:
+            return pmatch, match, hosts, reason
+
+        min_cores,reason=_get_dict_int(reqs, 'min_cores', 0)
+        if reason:
+            return pmatch, match, hosts, reason
 
         for h in cluster.nodes:
             nd = cluster.nodes[h]
 
-            min_cores = int(reqs.get('min_cores',0))
             if nd.ncores < min_cores:
                 continue
 
-            min_mem = float(reqs.get('min_mem',0.0))
             if nd.mem < min_mem:
                 continue
 
@@ -586,7 +625,10 @@ class Job(dict):
             return pmatch, match, hosts, reason
 
         nd = cluster.nodes[h]
-        N = int(reqs.get('N', 1))
+
+        N,reason=_get_dict_int(reqs, 'N', 1)
+        if reason:
+            return pmatch, match, hosts, reason
 
         if nd.ncores >= N:
             pmatch=True
@@ -803,7 +845,7 @@ class JobQueue:
                 self.response['reason'] = newjob['reason']
 
     def _process_gethosts(self, message):
-        pid = message.get('pid')
+        pid = message.get('pid',None)
         if pid is None:
             self.response['error'] = "submit requests must contain the 'pid' field"
             return

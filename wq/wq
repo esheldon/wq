@@ -474,7 +474,8 @@ class Submitter(dict):
 
         print 'submitting',job_file,
         log_file = open(job_file+'.wqlog', 'w')
-        p=subprocess.Popen(['nohup','wq','sub',job_file], 
+        port = str(pars['port'])
+        p=subprocess.Popen(['nohup','wq','-p',port,'sub',job_file], 
                            env=os.environ,
                            stderr=subprocess.STDOUT, 
                            stdout=log_file)
@@ -704,6 +705,7 @@ def send_message(message, timeout=None, crash_on_timeout=False):
     except:
         es=sys.exc_info()
         print 'caught exception type:', es[0],'details:',es[1]
+        rdict=None
     finally:
         sock.close()
 
