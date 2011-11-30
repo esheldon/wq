@@ -208,14 +208,18 @@ class Lister(dict):
         nm = int (ds/60)
         ds -= nm*60
         ns = ds
+
         r=''
-        if (nd>0):
-            r+=str(nd)+'d'
-        if (nh>0):
-            r+='%02dh' % nh
-        if (nm>0):
-            r+='%02dm' % nm
-        r+='%02ds' % ns
+
+        if nd > 0:
+            r = '%dd%02dh%02dm%02ds' % (nd,nh,nm,ns)
+        elif nh > 0:
+            r = '%02dh%02dm%02ds' % (nh,nm,ns)
+        elif nm > 0:
+            r = '%02dm%02ds' % (nm,ns)
+        else:
+            r = '%02ds' % ns
+
         return r
                   
 
