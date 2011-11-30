@@ -42,17 +42,17 @@ Submitting Jobs
 You can either submit using a job file, written in YAML, or by sending the
 commands as an option
 
-    wq sub job_file 
     wq sub -b job_file1 job_file2 ...
     wq sub -c command
+    wq sub job_file 
 
-The job file contains a "command" and a set of requirements; see the Job Files
+A job file contains a "command" and a set of requirements; see the Job Files
 section for more details.  
 
 If -b/--batch is sent, the job or jobs are submitted in batch mode in the
-**background** instead of the foreground as when using -c or a job file without
-the -b flag.  When submitting multiple files, a short delay is observed between
-submissions to prevent overloading the server. 
+**background**, whereas normaly jobs are kept in the foreground.  When
+submitting multiple files, a short delay is observed between submissions to
+prevent overloading the server. 
 
 When not using batch mode, you can also send requirements using -r/--require
     
@@ -81,7 +81,7 @@ command: and then indent the lines.  For example
     command: |
         source ~/.bashrc
         cd ~/mydata
-        cat data.txt | awk '{print $3}' > list.txt
+        cat data.txt | awk '{print $3}' 1> list.txt 2> list.err
 
 You can also put requirements in the job file.  For example, to grab 3 cores
 and only use  nodes from groups gen1 and gen2, but not group slow
