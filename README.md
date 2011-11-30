@@ -216,15 +216,9 @@ Tips and Tricks
   by sourcing your startup script. e.g. 
 
         wq sub -c "source ~/.bashrc; command"
+
   You can also just run a script that sets up your environment and runs the
   command.
-
-* If you don't want to submit a batch job in the background using -b, you
-  can run the command "screen" and then run a command series that is followed
-  by "exit". This will free up the slot when you finish.  
-
-        wq sub -c screen
-        command1; command2; exit
 
 Getting Statistics For the Cluster and Queue
 --------------------------------------------
