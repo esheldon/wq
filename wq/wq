@@ -181,7 +181,7 @@ class Lister(dict):
             print fmt % {'pid':'Pid','user':'User',
                          'st':'St', 'pri':'Pri', 'nc':'Nc',
                          'nh':'Nh','host0':'Host0',
-                         'cmd':'Cmd','time_sub':'t_in','time_run':'t_run'}
+                         'cmd':'Cmd','time_sub':'Tq','time_run':'Trun'}
         for l in lines:
             print fmt % l
 
