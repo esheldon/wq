@@ -59,9 +59,8 @@ When not using batch mode, you can also send requirements using -r/--require
     wq sub -r requirements job_file
     wq sub -r requirements -c command
 
-Requirements sent using -r will over-ride those in the job file.  Note -r is
-not supported for batch submission. For a list of available requirements
-fields, see the Requirements sub-section.
+Requirements sent using -r will over-ride those in the job file.  For a list of
+available requirements fields, see the Requirements sub-section.
 
 Note if you need to keep the outputs of your command, you need to redirect them
 to files yourself.
