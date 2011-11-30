@@ -256,6 +256,11 @@ is the first host in the hosts list, Tq is the time the job has been in the
 queue, Trun is the time it has been running, and Cmd is the job_name, if given
 in the requirements, otherwise it is the first word in the command line.
 
+The default job listing will always have a fixed number of columns except for
+the summary line; white space job names will be replaced by dashes "-" to
+guarantee this is always true.  This guarantees you can run the output through
+programs like awk.
+
 ### Cluster and Queue Status
 
 Use the "stat" command to get a summary of the cluster usage and queue
