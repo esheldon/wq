@@ -178,7 +178,7 @@ Here is a full, commented example
     N: 5
 
     # Select from this group(s)
-    group: gen1
+    group: new
 
     # Do not select from this set of groups
     notgroup: [slow,crappy]
