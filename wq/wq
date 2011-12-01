@@ -81,7 +81,7 @@ class ServerWrapper:
     def execute(self):
         self.srv.run()
 
-class Lister(dict):
+class JobLister(dict):
     """
     usage: wq ls [options]
 
@@ -97,7 +97,7 @@ class Lister(dict):
         self._process_args(args)
 
     def _process_args(self, args):
-        parser=OptionParser(Lister.__doc__)
+        parser=OptionParser(JobLister.__doc__)
         parser.add_option("-u", "--user", default=None, 
                           help="Only list jobs for the user.  can be a comma separated list")
         parser.add_option("-f", "--full", action='store_true',
@@ -296,6 +296,7 @@ class Lister(dict):
         # the output of wq ls
         c = '-'.join(str(c).split())
         return c
+
 class Stats(dict):
     """
     usage: wq stat
@@ -316,6 +317,55 @@ class Stats(dict):
         status=resp['response']
 
         wq.server.print_stat(status)
+
+class UsersLister(dict):
+    """
+    usage: wq users
+
+    print user info for the system
+    """
+
+    def __init__(self, args):
+        parser=OptionParser(Stats.__doc__)
+        options, args = parser.parse_args(args)
+
+    def execute(self):
+        message={}
+        message['command'] = 'users'
+
+        resp = send_message(message)
+
+        users=resp['response']
+
+        wq.server.print_users(users)
+
+class Limiter(dict):
+    """
+    usage: wq limit "key1:val1; key2:val2; ..."
+
+    print user info for the system
+    """
+
+    def __init__(self, args):
+        parser=OptionParser(Stats.__doc__)
+        options, args = parser.parse_args(args)
+
+        if len(args) < 1:
+            parser.print_help()
+            sys.exit(1)
+
+        self.limits = _process_singleline_yaml(args[0])
+
+    def execute(self):
+        message={}
+        message['command'] = 'limit'
+        message['user'] = os.environ['USER']
+        message['limits'] = self.limits
+
+        resp = send_message(message)
+
+        print resp['response']
+
 
 class Refresher(dict):
     """
@@ -408,6 +458,22 @@ class Remover(dict):
         else:
             return True
 
+def _process_singleline_yaml(data):
+    import re
+
+    yaml_data={}
+    if data is None:
+        return yaml_data
+
+    # convert semicolon to newline
+    r = re.sub(';\s*', '\n', data)
+    # make sure there is a space between : and value
+    r = r.replace(':',': ')
+    
+    yaml_data = yaml.load(r)
+
+    return yaml_data
+
 
 
 class Submitter(dict):
@@ -477,7 +543,8 @@ class Submitter(dict):
             sys.exit(1)
 
         # requirements sent using -r/--require over-ride
-        reqs_from_opt = self._process_require_opt(self['require_opt'])
+        #reqs_from_opt = self._process_require_opt(self['require_opt'])
+        reqs_from_opt = _process_singleline_yaml(self['require_opt'])
 
         for ro in reqs_from_opt:
             reqs[ro] = reqs_from_opt[ro]
@@ -569,7 +636,9 @@ class Submitter(dict):
         #   X: true or X: 1 for yes (anything evaluates as True in python)
         #   X: false or X: 0 for no
         xforward = require.get('X',False)
-        if not xforward:
+        if xforward:
+            cmdlist.append('-X')
+        else:
             cmdlist.append('-x')
 
         # full command, we first change directory to CWD
@@ -745,9 +814,13 @@ def get_command_obj(args, **keys):
     if args[0] == 'sub':
         return Submitter(args[1:])
     elif args[0] == 'ls':
-        return Lister(args[1:])
+        return JobLister(args[1:])
     elif args[0] == 'stat':
         return Stats(args[1:])
+    elif args[0] == 'users':
+        return UsersLister(args[1:])
+    elif args[0] == 'limit':
+        return Limiter(args[1:])
     elif args[0] == 'rm':
         return Remover(args[1:])
     elif args[0] == 'refresh':
