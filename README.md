@@ -220,7 +220,8 @@ You can also specify Ncores, or even combine them
 
     wq limit "Njobs: 25; Ncores: 100"
 
-These data are saved in a file on disk reloaded when the server is restarted.
+These data are saved in a file on disk and reloaded when the server is
+restarted.
 
 Tips and Tricks
 ---------------
