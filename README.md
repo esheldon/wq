@@ -15,13 +15,13 @@ For best results, users should have ssh keys and an ssh agent running to allow
 ssh login to the nodes without typing their pass-phrase.
 
 The only queue currently supported is a very simple matching queue with
-priorities.  This is **very** simple: jobs are put in the queue in order they
-arrive.  Each time the queue is refreshed, the first one that can run will run,
-with higher priority jobs checked first.  There is also a special priority
-"block" that blocks other jobs until it can run.  A TODO is to make this
-smarter so it only blocks jobs that directly compete for needed resources.
+priorities and limits.  This is **very** simple: jobs are put in the queue in
+order they arrive.  Each time the queue is refreshed, the first one that can
+run will run, with higher priority jobs checked first.  There is a special
+priority "block" that blocks other jobs until it can run.  Users can also set
+limits on the number of jobs they run and/or the number of cores they use.  
 
-Another queue could be plugged in easily if desired.
+Another queue could be plugged in if desired.
 
 The wq Script
 -------------
@@ -208,6 +208,19 @@ to send the X requirement.  e.g.
 Note you can use tcsh if that is your login shell.  In this scenario, your
 environment will be set up as normal.
 
+Placing user job limits
+-----------------------
+
+You can limit the number of jobs you can run at once, or the number
+of cores you use.  For example, to limit it 25 jobs
+
+    wq limit "Njobs: 25"
+
+You can also specify Ncores, or even combine them
+
+    wq limit "Njobs: 25; Ncores: 100"
+
+
 Tips and Tricks
 ---------------
 
@@ -281,6 +294,19 @@ Here is an example
     [****....]      astro0032  32 gen3      
     [........]      astro0033  32 gen3      
 
+
+### User information
+
+Using the users command, you can list the users of the system, the number of
+jobs running, the number of cores used, and the user's limits:
+
+    wq users
+
+Here is an example listing
+
+    User      Njobs  Ncores  Limits
+    esheldon  10     80      {'Njobs': 12}   
+    anze      35     35      {'Ncores': 35}   
 
 Refreshing the Queue
 --------------------
