@@ -221,7 +221,9 @@ You can also specify Ncores, or even combine them
     wq limit "Njobs: 25; Ncores: 100"
 
 These data are saved in a file on disk and reloaded when the server is
-restarted.
+restarted.  You can remove limits by setting them to -1, e.g.
+
+    wq limit "Njobs: -1; Ncores: -1"
 
 Tips and Tricks
 ---------------
