@@ -307,8 +307,8 @@ jobs running, the number of cores used, and the user's limits:
 Here is an example listing
 
     User      Njobs  Ncores  Limits
-    esheldon  10     80      {'Njobs': 12}   
-    anze      35     35      {'Ncores': 35}   
+    esheldon  10     80      {Ncores:100;Njobs:10}
+    anze      35     35      {}
 
 Refreshing the Queue
 --------------------

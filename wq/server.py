@@ -73,10 +73,19 @@ def print_users(users):
     for k in keys:
         lens[k] = len(k)
 
-    for uname in sorted(users):
+    udata={}
+    for uname in users:
         user=users[uname]
+        udata[uname]={}
+        udata[uname]['user'] = uname
+        udata[uname]['Njobs'] = user['Njobs']
+        udata[uname]['Ncores'] = user['Ncores']
+        limits = user['limits']
+        limits = '{' + ';'.join(['%s:%s' % (y,limits[y]) for y in limits]) +'}'
+        udata[uname]['limits'] = limits
+
         for k in lens:
-            lens[k] = max( lens[k],len(str(user[k])) )
+            lens[k] = max( lens[k],len(str(udata[uname][k])) )
 
     fmt =  ' %(user)-'+str(lens['user'])+'s'
     fmt += '  %(Njobs)-'+str(lens['Njobs'])+'s'
@@ -87,8 +96,8 @@ def print_users(users):
     for k in lens:
         hdr[k] = k.capitalize()
     print fmt % hdr
-    for uname in sorted(users):
-        print fmt % users[uname]
+    for uname in sorted(udata):
+        print fmt % udata[uname]
 
 def socket_send(conn, mess):
     """
