@@ -64,6 +64,10 @@ def print_stat(status):
     print ' Used cores: %i/%i (%3.1f%%)' % (status['used'],status['ncores'],perc)
 
 def print_users(users):
+    """
+    input should be a dict.  You an convert a Users instance
+    using asdict()
+    """
     keys = ['user','Njobs','Ncores','limits']
     lens={}
     for k in keys:
@@ -147,7 +151,7 @@ class Server:
                 print 'refreshing queue'
                 self.queue.refresh()
                 #print self.queue.cluster.Status()
-                print_stat(self.queue.cluster.Status())
+                #print_stat(self.queue.cluster.Status())
 
 
     def run(self):
@@ -161,6 +165,7 @@ class Server:
             es=sys.exc_info()
             print 'caught exception type:', es[0],'details:',es[1]
         finally:
+            self.queue.save_users()
             print 'shutdown'
             self.sock.shutdown(socket.SHUT_RDWR)
             print 'close'
@@ -312,11 +317,39 @@ class Users:
     def __contains__(self, user):
         return user in self.users
 
+    def fromfile(self, fname):
+        """
+        Only user and limits are loaded.
+        """
+        if os.path.exists(fname):
+            print 'Loading user info from:',fname
+            with open(fname) as fobj:
+                data = yaml.load(fobj)
+            self.users={}
+            for user,udata in data.iteritems():
+                u = self._new_user(user)
+                u['limits'] = udata['limits']
+                self.users[user] = u
+
+    def tofile(self, fname):
+        """
+        Write to file.  Only the username and limits are saved.
+        """
+        data={}
+        for user,udata in self.users.iteritems():
+            data[user] = {}
+            data[user]['user'] = user
+            data[user]['limits'] = udata['limits']
+
+        with open(fname,'w') as fobj:
+            yaml.dump(data, fobj)
+
     def get(self, user):
         udata = self.users.get(user,None)
         if udata is None:
             udata = self.add_new(user)
         return udata
+
 
     def add_new(self, user):
         udata = self.users.get(user,None)
@@ -356,12 +389,6 @@ class Users:
 
     def asdict(self):
         return copy.deepcopy(self.users)
-        """
-        d={}
-        for k,v in self.items():
-            d[k] = v
-        return d
-        """
 
 class Job(dict):
 
@@ -807,28 +834,58 @@ class JobQueue:
         # copy the state, in case we screw up somewhere and modify the keys
         self.keys = copy.deepcopy(keys)
 
-        self.spool_dir = os.path.expanduser(keys.get('spool_dir',DEFAULT_SPOOL_DIR))
-        if not os.path.exists(self.spool_dir):
-            print 'making spool dir:',self.spool_dir
-            os.makedirs(self.spool_dir)
+        self.setup_spool()
 
         print "Loading cluster"
         self.cluster = Cluster(cluster_file)
         self.queue = []
 
-        print 'Setting up users'
-        self.users=Users()
+        self.load_users()
+        self.load_spool()
 
-        print "Loading jobs"
-        pattern = os.path.join(self.spool_dir,'*')
-        for fn in glob.glob(pattern):
-            job = cPickle.load(open(fn))
-            if (job['status']=='run'):
-                ### here we just need to reserve the cluster.
-                self.cluster.Reserve(job['hosts'])
-            self.queue.append(job)
+        print_users(self.users.asdict())
 
         print_stat(self.cluster.Status())
+
+    def setup_spool(self):
+        self.spool_dir = os.path.expanduser(self.keys.get('spool_dir',DEFAULT_SPOOL_DIR))
+        if not os.path.exists(self.spool_dir):
+            print 'making spool dir:',self.spool_dir
+            os.makedirs(self.spool_dir)
+
+    def users_file(self):
+        return os.path.join(self.spool_dir, 'users.yaml')
+
+    def load_users(self):
+        self.users = Users()
+        fname = self.users_file()
+        self.users.fromfile(fname)
+
+    def save_users(self):
+        fname = self.users_file()
+        self.users.tofile(fname)
+
+    def load_spool(self):
+        print "Loading jobs"
+        pattern = os.path.join(self.spool_dir,'*')
+        flist = glob.glob(pattern)
+        for fn in sorted(flist):
+            if fn[-4:] == '.run' or fn[-5:] == '.wait':
+                job = None
+                try:
+                    job = cPickle.load(open(fn))
+                except:
+                    print 'could not unpickle job file:',fn
+                    es=sys.exc_info()
+                    print 'caught unpickle exception:', es[0],'details:',es[1]
+
+                if job:
+                    if job['status']=='run':
+                        # here we need to reserve the cluster and increment the
+                        # user data
+                        self.cluster.Reserve(job['hosts'])
+                        self.users.increment_user(job['user'], job['hosts'])
+                    self.queue.append(job)
 
 
     def process_message(self, message):
@@ -864,7 +921,7 @@ class JobQueue:
                 # job was told to run.
                 # see if the pid is still running, if not remove the job
                 if not self._pid_exists(job['pid']):
-                    print 'removing job %s, pid no longer valid'
+                    print 'removing job %s, pid no longer valid' % job['pid']
                     pids_to_del.append(job['pid'])
 
                     self._unreserve_job_and_decrement_user(job)
@@ -873,7 +930,7 @@ class JobQueue:
                     if not job.match_users(self.users):
                         # blame yourself
                         job['reason'] = 'user limits exceeded'
-                    if block_pid is not None:
+                    elif block_pid is not None:
                         # blame the wait on the blocking job
                         job['reason'] = 'waiting for block from job %s' % block_pid
                     else:
@@ -1072,7 +1129,7 @@ class JobQueue:
             found = False
             for i,job in enumerate(self.queue):
                 if job['pid'] == pid:
-                    ## we don't actually remove anything, hope refresh will do it.
+                    # we don't actually remove anything, refresh will do it.
                     if (job['user']!=user and user!='root'):
                         self.response['error']='PID belongs to user '+job['user']
                         return
@@ -1088,13 +1145,12 @@ class JobQueue:
         pids_to_kill=[]
         for i,job in enumerate(self.queue):
             if job['user'] == user:
-                # just drop them from the queue, and append
-                # to return list of pids to kill
                 pids_to_kill.append(job['pid'])
-                self._unreserve_job_and_decrement_user(job)
-
-
-
+                # we rely on the refresh to do this
+                #self._unreserve_job_and_decrement_user(job)
+        self.response['response'] = 'OK'
+        self.response['pids_to_kill'] = pids_to_kill
+        """
         if len(pids_to_kill) == 0:
             self.response['error'] = 'No jobs for user:',user,'in queue'
         else:
@@ -1103,7 +1159,7 @@ class JobQueue:
 
             self.response['response'] = 'OK'
             self.response['pids_to_kill'] = pids_to_kill
-
+        """
 
     def _process_notification(self, message):
         notifi = message.get('notification',None)
