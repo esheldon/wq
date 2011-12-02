@@ -165,6 +165,7 @@ class Server:
             es=sys.exc_info()
             print 'caught exception type:', es[0],'details:',es[1]
         finally:
+            print 'saving users'
             self.queue.save_users()
             print 'shutdown'
             self.sock.shutdown(socket.SHUT_RDWR)
