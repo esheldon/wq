@@ -150,8 +150,7 @@ class Server:
                 # we just reached the timeout, refresh the queue
                 print 'refreshing queue'
                 self.queue.refresh()
-                #print self.queue.cluster.Status()
-                #print_stat(self.queue.cluster.Status())
+                print_stat(self.queue.cluster.Status())
 
 
     def run(self):
@@ -165,7 +164,6 @@ class Server:
             es=sys.exc_info()
             print 'caught exception type:', es[0],'details:',es[1]
         finally:
-            print 'saving users'
             self.queue.save_users()
             print 'shutdown'
             self.sock.shutdown(socket.SHUT_RDWR)
@@ -837,7 +835,7 @@ class JobQueue:
 
         self.setup_spool()
 
-        print "Loading cluster"
+        print "Loading cluster from:",cluster_file
         self.cluster = Cluster(cluster_file)
         self.queue = []
 
@@ -860,14 +858,16 @@ class JobQueue:
     def load_users(self):
         self.users = Users()
         fname = self.users_file()
+        print 'loading users from:',fname
         self.users.fromfile(fname)
 
     def save_users(self):
         fname = self.users_file()
+        print 'saving users to:',fname
         self.users.tofile(fname)
 
     def load_spool(self):
-        print "Loading jobs"
+        print "Loading jobs from:",self.spool_dir
         pattern = os.path.join(self.spool_dir,'*')
         flist = glob.glob(pattern)
         for fn in sorted(flist):
