@@ -19,7 +19,7 @@ priorities and limits.  This is **very** simple: jobs are put in the queue in
 order they arrive.  Each time the queue is refreshed, the first one that can
 run will run, with higher priority jobs checked first.  There is a special
 priority "block" that blocks other jobs until it can run.  Users can also set
-limits on the number of jobs they run and/or the number of cores they use.  
+limits on the number of jobs they run and/or the number of cores they use.
 These limits help relieve congestion.
 
 Another queue could be plugged in if desired.
