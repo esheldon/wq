@@ -208,8 +208,8 @@ to send the X requirement.  e.g.
 Note you can use tcsh if that is your login shell.  In this scenario, your
 environment will be set up as normal.
 
-Placing user job limits
------------------------
+Placing limits on how many jobs you run or cores you use
+--------------------------------------------------------
 
 You can limit the number of jobs you can run at once, or the number
 of cores you use.  For example, to limit it 25 jobs
@@ -220,6 +220,7 @@ You can also specify Ncores, or even combine them
 
     wq limit "Njobs: 25; Ncores: 100"
 
+These data are saved in a file on disk reloaded when the server is restarted.
 
 Tips and Tricks
 ---------------

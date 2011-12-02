@@ -1107,6 +1107,7 @@ class JobQueue:
         for l,v in limits.items():
             udata['limits'][l] = v
 
+        self.save_users()
         self.response['response'] = 'OK'
         
     def _process_status_request(self, message):
