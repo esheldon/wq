@@ -560,7 +560,7 @@ class Job(dict):
         if reason:
             return pmatch, match, hosts, reason
 
-        for h in cluster.nodes:
+        for h in sorted(cluster.nodes):
             nd = cluster.nodes[h]
 
             if nd.mem < min_mem:
@@ -634,7 +634,7 @@ class Job(dict):
         if reason:
             return pmatch, match, hosts, reason
 
-        for h in cluster.nodes:
+        for h in sorted(cluster.nodes):
             nd = cluster.nodes[h]
 
             if nd.mem < min_mem:
@@ -711,7 +711,7 @@ class Job(dict):
         if reason:
             return pmatch, match, hosts, reason
 
-        for h in cluster.nodes:
+        for h in sorted(cluster.nodes):
             nd = cluster.nodes[h]
 
             if nd.ncores < min_cores:
@@ -813,7 +813,7 @@ class Job(dict):
             pmatch=False
             reason = 'Need to specify group'
         else:
-            for h in cluster.nodes:
+            for h in sorted(cluster.nodes):
                 nd = cluster.nodes[h]
                 if g in nd.grps:
                     pmatch=True
