@@ -11,8 +11,8 @@ be run by any user and other users schedule jobs using a client.  When
 scheduled to run, the client logs into the appropriate node using ssh and then
 executes the job.
 
-For best results, users should have ssh keys and an ssh agent running to allow
-ssh login to the nodes without typing their pass-phrase.
+Users should have ssh keys and an ssh agent running to allow ssh login to the
+nodes without typing their pass-phrase.
 
 The only queue currently supported is a very simple matching queue with
 priorities and limits.  This is **very** simple: jobs are put in the queue in
