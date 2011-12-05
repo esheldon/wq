@@ -359,6 +359,20 @@ the clients will also need to use that port.
 
     wq -p portnum sub jobfile
 
+### The Spool Directory
+
+Note the job and user data are kept in the spool directory, ~/wqspool by
+default.  So if you restart the job from a different account, remember to
+specify -s/--spool when starting the server.
+
+    wq serve -s spool_dir desc
+
+### Restarting the server
+
+When you restart the server, all jobs and user data will be reloaded.  Note the
+port will typically be "in use" from the previous instance for 30 seconds or
+so, so be patient; it is no big deal for the server to be off for a while, it
+will catch up.  Users will just have to wait a bit to submit jobs.
 
 Installation
 ------------
