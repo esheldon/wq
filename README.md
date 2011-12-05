@@ -77,8 +77,8 @@ The job files and requirements are all in YAML syntax
     command: dostuff 1> dostuff.out 2> dostuff.err
 
 Don't forget the space between the colon ":" and the value.  The command can
-actually be a full script.  All you have to is put a **pipe symbol "|"** after
-command: and then **indent the lines**.  For example
+actually be a full script.  Just put a **pipe symbol "|"** after command: and
+then **indent the lines**.  For example
 
     command: |
         source ~/.bashrc
