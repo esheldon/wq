@@ -160,8 +160,13 @@ class JobLister(dict):
                 # this is the first host on the list
                 this['host0'] = self._get_host0(r)
                 
+
+                # for sorting
+                this['time_sub'] = r['time_sub']
+
                 for k in this:
-                    lens[k] = max(lens[k], len(('%s' % this[k])))
+                    if k in lens:
+                        lens[k] = max(lens[k], len(('%s' % this[k])))
                 
                 lines.append(this)
 
@@ -182,7 +187,8 @@ class JobLister(dict):
                          'st':'St', 'pri':'Pri', 'nc':'Nc',
                          'nh':'Nh','host0':'Host0',
                          'cmd':'Cmd','Tq':'Tq','Trun':'Trun'}
-        for l in lines:
+
+        for l in sorted(lines, key=lambda x: x['time_sub']):
             print fmt % l
 
         njobs = nrun+nwait
