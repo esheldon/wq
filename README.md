@@ -351,6 +351,11 @@ The format is
 The mem is in gigabytes, and can be floating point.  The groups are optional
 and comma separated.  
 
+Unless you are just testing, you **almost certainly** want to run it with nohup
+and redirect the output
+
+    nohup serve desc 1> server.out 2> serve.err &
+
 You can change the port for sockets using -p; 
 
     wq -p portnum serve descfile
