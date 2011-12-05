@@ -361,7 +361,7 @@ the clients will also need to use that port.
 
 ### The Spool Directory
 
-Note the job and user data are kept in the spool directory, ~/wqspool by
+The job and user data are kept in the spool directory, ~/wqspool by
 default.  So if you restart the job from a different account, remember to
 specify -s/--spool when starting the server.
 
