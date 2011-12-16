@@ -635,7 +635,8 @@ class Submitter(dict):
     def make_command_list(self, target_machine, command, require):
         # first, force pseudo tty; this is key to make sure command
         # dies if this client dies
-        cmdlist = ['ssh','-t', '-t']
+        # also -A forwards ssh agent
+        cmdlist = ['ssh','-t', '-t','-A']
 
         # should we forward X? default is no no.  This is in the
         # requirements as
