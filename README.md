@@ -146,7 +146,7 @@ is the full list
 * N - The number of nodes or cores, depending on the mode.
 * group - Select cores or nodes from the specified group or groups.  This can be a scalar or list
 * notgroup - Select cores or nodes from machines not in the specified group or groups.
-* host - when mode is byhost, you must also send this requirement
+* host - The host name. When mode is byhost, you must also send this requirement
 * min_cores - Limit to nodes with at least this many cores.  Currently only applies when mode is *bynode* (should this work for bycore selections?).
 * min_mem - Limit to nodes with at least this much memory in GB.  Currently only applies when mode is *bycore*, *bycore1*, *bynode*.
 * X - This determines if ssh X display forwarding is used, default is False. For yes use true,1 for no use false,0
