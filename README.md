@@ -210,14 +210,13 @@ sure to send the X requirement.  e.g.
     wq sub -c bash
     wq sub -r "X:1" -c bash
 
-Note you can use tcsh if that is your login shell.  In this scenario, your
-environment will be set up as normal.
+In this scenario, your environment will be set up as normal.
 
 Placing limits on how many jobs you run or cores you use
 --------------------------------------------------------
 
 You can limit the number of jobs you can run at once, or the number
-of cores you use.  For example, to limit it 25 jobs
+of cores you use.  For example, to limit to 25 jobs
 
     wq limit "Njobs: 25"
 
