@@ -124,9 +124,9 @@ You can specify requirements on the command line using -r/--require.
 
 Each requirement is valid YAML. Note, however, that each element is separated
 by a semicolon, which is **not** valid YAML.  Internally the semicolons are
-replaced by newlines.  Also, you are are allowed to leave off the required
-space between colon ":" and value; again this is **not** valid YAML but these
-are put in for you just to allow compact requirements strings.  After these
+replaced by newlines.  Also, you are allowed to leave off the required space
+between colon ":" and value; again this is **not** valid YAML but these are put
+in for you just to allow compact requirements strings.  After these
 pre-processing steps, the requirements are parsed just like a job file.
 
 If you need a semicolon in your requirements, or if adding a space after colons
