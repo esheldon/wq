@@ -75,8 +75,8 @@ commands should take care of their own stdout/stdin.
 ###  Job Files
 
 The job files and requirements are all in YAML syntax
-<http://en.wikipedia.org/wiki/YAML>.  For example, to run the command "dostuff
--i /some/input -o /some/output on a single core, this would be the job file
+<http://en.wikipedia.org/wiki/YAML>.  For example, to run the command "dostuff"
+on a single core this would be the job file
 
     command: dostuff -i /some/input -o /some/output
 
