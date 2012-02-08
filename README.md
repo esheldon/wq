@@ -72,7 +72,8 @@ to files yourself.
 
 The job files and requirements are all in YAML syntax
 <http://en.wikipedia.org/wiki/YAML>.  For example, to run the command "dostuff"
-on a single core this would be the job file
+on a single core, and redirect the stdout and stderr to files, this would be
+the job file
 
     command: dostuff 1> dostuff.out 2> dostuff.err
 
