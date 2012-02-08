@@ -203,9 +203,9 @@ To run an MPI code, get hostnames through the hostfile requirement, e.g.
 Getting an interactive shell on a worker node
 ---------------------------------------------
 
-For an interactive shell, just use "bash" or your favorite shell as the
-command.  If you need the display for graphics, plotting, etc. make sure
-to send the X requirement.  e.g.
+For an interactive shell, just use your login shell as the command, e.g.
+"bash" or "tcsh".  If you need the display for graphics, plotting, etc. make
+sure to send the X requirement.  e.g.
 
     wq sub -c bash
     wq sub -r "X:1" -c bash
