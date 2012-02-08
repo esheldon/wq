@@ -10,7 +10,7 @@ The groups are optional comma separated list.
 
 import socket
 import signal
-import json
+import yaml
 import time
 import copy
 import sys
@@ -50,19 +50,54 @@ def print_stat(status):
             lens[n] = max(lens[n],len(l[n]))
         lines.append(l)
 
-    fmt = '%(usage)-'+str(lens['usage'])+'s  %(host)-'+str(lens['host'])+'s '
-    fmt += '%(mem)'+str(lens['mem'])+'s %(groups)-'+str(lens['groups'])+'s'
+    fmt = ' %(usage)-'+str(lens['usage'])+'s  %(host)-'+str(lens['host'])+'s '
+    fmt += ' %(mem)'+str(lens['mem'])+'s %(groups)-'+str(lens['groups'])+'s'
     hdr={}
     for k in lens:
-        hdr[k]=k
+        hdr[k]=k.capitalize()
     print fmt % hdr
     for l in lines:
         print fmt % l
 
     perc=100.*status['used']/status['ncores']
     print
-    print 'Used cores: %i/%i (%3.1f%%)' % (status['used'],status['ncores'],perc)
+    print ' Used cores: %i/%i (%3.1f%%)' % (status['used'],status['ncores'],perc)
 
+def print_users(users):
+    """
+    input should be a dict.  You an convert a Users instance
+    using asdict()
+    """
+    keys = ['user','Njobs','Ncores','limits']
+    lens={}
+    for k in keys:
+        lens[k] = len(k)
+
+    udata={}
+    for uname in users:
+        user=users[uname]
+        udata[uname]={}
+        udata[uname]['user'] = uname
+        udata[uname]['Njobs'] = user['Njobs']
+        udata[uname]['Ncores'] = user['Ncores']
+        limits = user['limits']
+        limits = '{' + ';'.join(['%s:%s' % (y,limits[y]) for y in limits]) +'}'
+        udata[uname]['limits'] = limits
+
+        for k in lens:
+            lens[k] = max( lens[k],len(str(udata[uname][k])) )
+
+    fmt =  ' %(user)-'+str(lens['user'])+'s'
+    fmt += '  %(Njobs)-'+str(lens['Njobs'])+'s'
+    fmt += '  %(Ncores)-'+str(lens['Ncores'])+'s'
+    fmt += '  %(limits)-'+str(lens['limits'])+'s'
+
+    hdr = {}
+    for k in lens:
+        hdr[k] = k.capitalize()
+    print fmt % hdr
+    for uname in sorted(udata):
+        print fmt % udata[uname]
 
 def socket_send(conn, mess):
     """
@@ -124,7 +159,6 @@ class Server:
                 # we just reached the timeout, refresh the queue
                 print 'refreshing queue'
                 self.queue.refresh()
-                #print self.queue.cluster.Status()
                 print_stat(self.queue.cluster.Status())
 
 
@@ -132,56 +166,65 @@ class Server:
         self.open_socket()
         self.sock.listen(1)
         try:
-            while True:
-
-                conn, addr = self.wait_for_connection()
-
-                data = socket_recieve(conn, self.buffsize)
-
-                # hmmm.. empty message, should we really dump out?
-                if not data: 
-                    break
-
-                try:
-                    message =json.loads(data)
-                    print 'got JSON request:',message
-                except:
-                    ret = {"error":"could not process JSON request: '%s'" % data}
-                    ret = json.dumps(ret)
-                    conn.send(ret)
-                    break
-
-                self.queue.process_message(message)
-                response = self.queue.get_response()
-
-                try:
-                    json_response = json.dumps(response)
-                except:
-                    err = {"error":"server error creating JSON response from '%s'" % ret}
-                    json_response = json.dumps(err)
-
-                # timeout mode is non-blocking under the hood, can't use
-                # sendall but we wouldn't want the exception possibility anyway
-                print 'response:',json_response
-                socket_send(conn, json_response)
-
-                print 'closing conn'
-                conn.close()
-                conn=None
-
+            self.doconn()
         except KeyboardInterrupt:
             pass
         except:
             es=sys.exc_info()
             print 'caught exception type:', es[0],'details:',es[1]
         finally:
+            self.queue.save_users()
             print 'shutdown'
             self.sock.shutdown(socket.SHUT_RDWR)
             print 'close'
             self.sock.close()
 
+    def doconn(self):
+        try:
+            while True:
 
+                conn, addr = self.wait_for_connection()
 
+                data = socket_recieve(conn, self.buffsize)
+
+                # hmmm.. empty message, should we really skip?
+                if not data: 
+                    continue
+
+                print 'got YAML request:',data
+                try:
+                    message = yaml.load(data)
+                except:
+                    ret = {"error":"could not process YAML request: '%s'" % data}
+                    ret = yaml.dump(ret)
+                    conn.send(ret)
+                    continue
+
+                self.queue.process_message(message)
+                response = self.queue.get_response()
+
+                try:
+                    yaml_response = yaml.dump(response)
+                except:
+                    err = {"error":"server error creating YAML response from '%s'" % ret}
+                    yaml_response = yaml.dump(err)
+
+                # timeout mode is non-blocking under the hood, can't use
+                # sendall but we wouldn't want the exception possibility anyway
+                print 'response:',yaml_response
+                socket_send(conn, yaml_response)
+
+                print 'closing conn'
+                conn.close()
+                conn=None
+        except socket.error, e:
+            es=sys.exc_info()
+            if 'Broken pipe' in es[1]:
+                # this happens sometimes when someone ctrl-c in the middle
+                # of talking with the server
+                pass
+            else:
+                raise e
 class Node:
     def __init__ (self, line):
         ls = line.split()
@@ -252,6 +295,108 @@ class Cluster:
         return res
 
 
+def _get_dict_int(d, key, default):
+    reason=''
+    try:
+        N = int(d.get(key, default))
+    except:
+        N = None
+        reason = "failed to extract int requirement '%s': %s" % (key,sys.exc_info()[1])
+    return N, reason
+
+def _get_dict_float(d, key, default):
+    reason=''
+    try:
+        f = float(d.get(key, default))
+    except:
+        f = None
+        reason = "failed to extract float requirement '%s': %s" % (key,sys.exc_info()[1])
+    return f, reason
+
+
+class Users:
+    """
+    Simple encapsulation so we can easily serialize
+    the users dictionary
+    """
+    def __init__(self):
+        self.users = {}
+
+    def __contains__(self, user):
+        return user in self.users
+
+    def fromfile(self, fname):
+        """
+        Only user and limits are loaded.
+        """
+        if os.path.exists(fname):
+            print 'Loading user info from:',fname
+            with open(fname) as fobj:
+                data = yaml.load(fobj)
+            self.users={}
+            for user,udata in data.iteritems():
+                u = self._new_user(user)
+                u['limits'] = udata['limits']
+                self.users[user] = u
+
+    def tofile(self, fname):
+        """
+        Write to file.  Only the username and limits are saved.
+        """
+        data={}
+        for user,udata in self.users.iteritems():
+            data[user] = {}
+            data[user]['user'] = user
+            data[user]['limits'] = udata['limits']
+
+        with open(fname,'w') as fobj:
+            yaml.dump(data, fobj)
+
+    def get(self, user):
+        udata = self.users.get(user,None)
+        if udata is None:
+            udata = self.add_new(user)
+        return udata
+
+
+    def add_new(self, user):
+        udata = self.users.get(user,None)
+        if udata is None:
+            udata = self._new_user(user)
+            self.users[user] = udata
+        return udata
+
+    def increment_user(self,user, hosts):
+        udata = self.users.get(user,None)
+        if udata is None:
+            udata = self.add_new(user)
+
+        ncores = len(hosts)
+        if ncores > 0:
+            udata['Njobs'] += 1
+            udata['Ncores'] += ncores
+
+    def decrement_user(self, user, hosts):
+        udata = self.users.get(user,None)
+        if not udata:
+            return
+
+        ncores = len(hosts)
+        if ncores > 0:
+            udata['Njobs'] -= 1
+            udata['Ncores'] -= ncores
+
+        if udata['Njobs'] < 0:
+            udata['Njobs'] = 0
+        if udata['Ncores'] < 0:
+            udata['Ncores'] = 0
+
+
+    def _new_user(self, user):
+        return {'user':user,'Njobs':0,'Ncores':0,'limits':{}}
+
+    def asdict(self):
+        return copy.deepcopy(self.users)
 
 class Job(dict):
 
@@ -318,7 +463,7 @@ class Job(dict):
             self['spool_fname']=None
     
 
-    def match(self, cluster, block_pid=None):
+    def match(self, cluster):
         if self['status'] == 'nevermatch':
             return
         if self['status'] != 'wait':
@@ -357,16 +502,45 @@ class Job(dict):
             self['status']='nevermatch'
             self['reason']=reason
 
+    def match_users(self, users):
+        """
+        ret False if user specifications are not met
+
+        users is just a dictionary
+        """
+        
+        # if user is not even known, then we are good
+        if self['user'] in users:
+            udata = users.get(self['user'])
+            # if no limits are specified, we are good
+            ulimits = udata['limits']
+            if ulimits:
+
+                Njobs_max = ulimits.get('Njobs',-1)
+                if Njobs_max >= 0:
+                    # this is the actual number of jobs the user has
+                    Njobs = udata.get('Njobs',0)
+                    if Njobs >= Njobs_max:
+                        return False
+
+                Ncores_max = ulimits.get('Ncores',-1)
+                if Ncores_max >= 0:
+                    # this is the actual number of cores the user has
+                    Ncores = udata.get('Ncores',0)
+                    if Ncores >= Ncores_max:
+                        return False
+
+        return True
 
     def _get_req_list(self, reqs, key):
         """
-        Can either send 'v1,v2,v3' as a string or an actual list [v1,v2,v3]
-        Will be converted to a list
+        If a scalar is found, itis converted to a list using [val]
         """
         val = reqs.get(key,[])
         if not isinstance(val, list):
             val = [val]
         return val
+
 
     def _match_bycore(self, cluster):
 
@@ -377,13 +551,18 @@ class Job(dict):
 
         reqs = self['require']
 
-        N = int(reqs.get('N', 1))
+        N,reason=_get_dict_int(reqs, 'N', 1)
+        if reason:
+            return pmatch, match, hosts, reason
         Np=N
 
-        for h in cluster.nodes:
+        min_mem, reason = _get_dict_float(reqs,'min_mem',0.0)
+        if reason:
+            return pmatch, match, hosts, reason
+
+        for h in sorted(cluster.nodes):
             nd = cluster.nodes[h]
 
-            min_mem = float(reqs.get('min_mem',0.0))
             if nd.mem < min_mem:
                 continue
 
@@ -426,7 +605,7 @@ class Job(dict):
                     hosts.append(h)
 
         if (not pmatch):
-            reason = 'Not enough total cores satistifying condition.'
+            reason = 'Not enough cores or mem satistifying condition.'
         elif (not match):
             reason = 'Not enough free cores.'
     
@@ -446,13 +625,18 @@ class Job(dict):
 
         reqs = self['require']
 
-        N = int(reqs.get('N', 1))
+        N,reason=_get_dict_int(reqs, 'N', 1)
+        if reason:
+            return pmatch, match, hosts, reason
         Np=N
 
-        for h in cluster.nodes:
+        min_mem, reason = _get_dict_float(reqs,'min_mem',0.0)
+        if reason:
+            return pmatch, match, hosts, reason
+
+        for h in sorted(cluster.nodes):
             nd = cluster.nodes[h]
 
-            min_mem = float(reqs.get('min_mem',0.0))
             if nd.mem < min_mem:
                 continue
 
@@ -513,17 +697,26 @@ class Job(dict):
 
         reqs = self['require']
 
-        N = int(reqs.get('N', 1))
+        N,reason=_get_dict_int(reqs, 'N', 1)
+        if reason:
+            return pmatch, match, hosts, reason
+
         Np=N
 
-        for h in cluster.nodes:
+        min_mem, reason = _get_dict_float(reqs,'min_mem',0.0)
+        if reason:
+            return pmatch, match, hosts, reason
+
+        min_cores,reason=_get_dict_int(reqs, 'min_cores', 0)
+        if reason:
+            return pmatch, match, hosts, reason
+
+        for h in sorted(cluster.nodes):
             nd = cluster.nodes[h]
 
-            min_cores = int(reqs.get('min_cores',0))
             if nd.ncores < min_cores:
                 continue
 
-            min_mem = float(reqs.get('min_mem',0.0))
             if nd.mem < min_mem:
                 continue
 
@@ -587,7 +780,10 @@ class Job(dict):
             return pmatch, match, hosts, reason
 
         nd = cluster.nodes[h]
-        N = int(reqs.get('N', 1))
+
+        N,reason=_get_dict_int(reqs, 'N', 1)
+        if reason:
+            return pmatch, match, hosts, reason
 
         if nd.ncores >= N:
             pmatch=True
@@ -617,7 +813,7 @@ class Job(dict):
             pmatch=False
             reason = 'Need to specify group'
         else:
-            for h in cluster.nodes:
+            for h in sorted(cluster.nodes):
                 nd = cluster.nodes[h]
                 if g in nd.grps:
                     pmatch=True
@@ -646,25 +842,60 @@ class JobQueue:
         # copy the state, in case we screw up somewhere and modify the keys
         self.keys = copy.deepcopy(keys)
 
-        self.spool_dir = os.path.expanduser(keys.get('spool_dir',DEFAULT_SPOOL_DIR))
+        self.setup_spool()
+
+        print "Loading cluster from:",cluster_file
+        self.cluster = Cluster(cluster_file)
+        self.queue = []
+
+        self.load_users()
+        self.load_spool()
+
+        print_users(self.users.asdict())
+
+        print_stat(self.cluster.Status())
+
+    def setup_spool(self):
+        self.spool_dir = os.path.expanduser(self.keys.get('spool_dir',DEFAULT_SPOOL_DIR))
         if not os.path.exists(self.spool_dir):
             print 'making spool dir:',self.spool_dir
             os.makedirs(self.spool_dir)
 
-        print "Loading cluster"
-        self.cluster = Cluster(cluster_file)
-        self.queue = []
+    def users_file(self):
+        return os.path.join(self.spool_dir, 'users.yaml')
 
-        print "Loading jobs"
+    def load_users(self):
+        self.users = Users()
+        fname = self.users_file()
+        print 'loading users from:',fname
+        self.users.fromfile(fname)
+
+    def save_users(self):
+        fname = self.users_file()
+        print 'saving users to:',fname
+        self.users.tofile(fname)
+
+    def load_spool(self):
+        print "Loading jobs from:",self.spool_dir
         pattern = os.path.join(self.spool_dir,'*')
-        for fn in glob.glob(pattern):
-            job = cPickle.load(open(fn))
-            if (job['status']=='run'):
-                ### here we just need to reserve the cluster.
-                self.cluster.Reserve(job['hosts'])
-            self.queue.append(job)
+        flist = glob.glob(pattern)
+        for fn in sorted(flist):
+            if fn[-4:] == '.run' or fn[-5:] == '.wait':
+                job = None
+                try:
+                    job = cPickle.load(open(fn))
+                except:
+                    print 'could not unpickle job file:',fn
+                    es=sys.exc_info()
+                    print 'caught unpickle exception:', es[0],'details:',es[1]
 
-        print_stat(self.cluster.Status())
+                if job:
+                    if job['status']=='run':
+                        # here we need to reserve the cluster and increment the
+                        # user data
+                        self.cluster.Reserve(job['hosts'])
+                        self.users.increment_user(job['user'], job['hosts'])
+                    self.queue.append(job)
 
 
     def process_message(self, message):
@@ -700,15 +931,17 @@ class JobQueue:
                 # job was told to run.
                 # see if the pid is still running, if not remove the job
                 if not self._pid_exists(job['pid']):
-                    print 'removing job %s, pid no longer valid'
+                    print 'removing job %s, pid no longer valid' % job['pid']
                     pids_to_del.append(job['pid'])
-                    job.UnSpool()
-                    if job['status'] == 'run':
-                        self.cluster.Unreserve(job['hosts'])
-                        job['status'] = 'done'
+
+                    self._unreserve_job_and_decrement_user(job)
 
                 elif job['status'] != 'run':
-                    if block_pid is not None:
+                    if not job.match_users(self.users):
+                        # blame yourself
+                        job['reason'] = 'user limits exceeded'
+                    elif block_pid is not None:
+                        # blame the wait on the blocking job
                         job['reason'] = 'waiting for block from job %s' % block_pid
                     else:
                         # see if we can now run the job
@@ -719,6 +952,9 @@ class JobQueue:
                             # this will remove any pid.wait file and write a pid.run file
                             # sets status to 'run'
                             job.Spool()
+
+                            # keep statistics for each user
+                            self.users.increment_user(job['user'], job['hosts'])
                         elif priority == 'block':
                             # special case: if we hit a blocking job that is
                             # waiting, we will not let any others run
@@ -727,6 +963,14 @@ class JobQueue:
         # rebuild the queue without these items
         if len(pids_to_del) > 0:
             self.queue = [j for j in self.queue if j['pid'] not in pids_to_del]
+
+    def _unreserve_job_and_decrement_user(self, job):
+        job.UnSpool()
+        if job['status'] == 'run':
+            self.users.decrement_user(job['user'], job['hosts'])
+            self.cluster.Unreserve(job['hosts'])
+            job['status'] = 'done'
+
 
     def get_response(self):
         return self.response
@@ -742,6 +986,10 @@ class JobQueue:
             self._process_listing_request(message)
         elif command in ['stat']:
             self._process_status_request(message)
+        elif command in ['users']:
+            self._process_userlist_request()
+        elif command in ['limit']:
+            self._process_limit_request(message)
         elif command in ['rm']:
             self._process_remove_request(message)
         elif command == 'notify':
@@ -750,13 +998,16 @@ class JobQueue:
             self.refresh()
             self.response['response'] = 'OK'
         else:
-            self.response['error'] = "only support 'sub' and 'list' commands"
+            self.response['error'] = ("only support 'sub','gethosts', "
+                                      "'ls','stat','users','rm','notify',"
+                                      "'refresh' commands")
 
     def _blocking_job(self):
         for job in self.queue:
             if job['priority'] == 'block' and job['status'] == 'wait':
                 return job['pid']
         return None
+
 
     def _process_submit_request(self, message):
         pid = message.get('pid')
@@ -779,13 +1030,26 @@ class JobQueue:
         if newjob['status'] == 'nevermatch':
             self.response['error'] = newjob['reason']
         else:
-            block_pid = self._blocking_job()
-            if block_pid is not None:
-                # Tell the new job to wait and blame the blocking job
+
+            if not newjob.match_users(self.users):
+                # the user limits would be exceeded (or something) if we run
+                # this job
                 newjob['status'] = 'wait'
-                newjob['reason'] = 'waiting for block from job %s' % block_pid
-            elif newjob['status'] == 'ready':
-                self.cluster.Reserve(newjob['hosts'])
+                newjob['reason'] = 'user limits exceeded'
+            else:
+                block_pid = self._blocking_job()
+                if block_pid is not None:
+                    # Tell the new job to wait and blame the blocking job
+                    newjob['status'] = 'wait'
+                    newjob['reason'] = 'waiting for block from job %s' % block_pid
+                elif newjob['status'] == 'ready':
+
+                    # only by reaching here to we reserve the hosts and
+                    # update user info
+                    self.cluster.Reserve(newjob['hosts'])
+
+                    # keep statistics for each user
+                    self.users.increment_user(newjob['user'], newjob['hosts'])
 
             # this will create a pid.wait or pid.run depending on status
             # if status='ready', sets status to 'run' once the pid file is written
@@ -803,8 +1067,9 @@ class JobQueue:
             elif self.response['response'] == 'wait':
                 self.response['reason'] = newjob['reason']
 
+
     def _process_gethosts(self, message):
-        pid = message.get('pid')
+        pid = message.get('pid',None)
         if pid is None:
             self.response['error'] = "submit requests must contain the 'pid' field"
             return
@@ -812,7 +1077,7 @@ class JobQueue:
         for job in self.queue:
             if job['pid']==pid:
                 self.response['hosts']=job['hosts']
-                self.response['response']='ok'
+                self.response['response']='OK'
                 return
 
         self.response['error'] = "we don't have this pid"
@@ -827,6 +1092,33 @@ class JobQueue:
         
         self.response['response'] = listing
 
+    def _process_userlist_request(self):
+        self.response['response'] = self.users.asdict()
+
+    def _process_limit_request(self, message):
+        """
+        Currently only processing the limits entry
+        """
+        user = message.get('user',None)
+        if user is None:
+            self.response['error'] = ('You must send your username when '
+                                      'setting user variables')
+            return
+
+        limits = message.get('limits',{}) 
+        if not limits:
+            self.response['error'] = 'Expected some limits to be sent'
+            return
+
+        print 'limits sent:',limits
+        # we have a reference here, might want to hide this
+        udata = self.users.get(user)
+        for l,v in limits.items():
+            udata['limits'][l] = v
+
+        self.save_users()
+        self.response['response'] = 'OK'
+        
     def _process_status_request(self, message):
         self.response['response'] = self.cluster.Status()
 
@@ -848,7 +1140,7 @@ class JobQueue:
             found = False
             for i,job in enumerate(self.queue):
                 if job['pid'] == pid:
-                    ## we don't actually remove anything, hope refresh will do it.
+                    # we don't actually remove anything, refresh will do it.
                     if (job['user']!=user and user!='root'):
                         self.response['error']='PID belongs to user '+job['user']
                         return
@@ -864,16 +1156,12 @@ class JobQueue:
         pids_to_kill=[]
         for i,job in enumerate(self.queue):
             if job['user'] == user:
-                # just drop them from the queue, and append
-                # to return list of pids to kill
                 pids_to_kill.append(job['pid'])
-                job.UnSpool()
-                if job['status'] == 'run':
-                    self.cluster.Unreserve(job['hosts'])
-                    job['status'] = 'done'
-
-
-
+                # we rely on the refresh to do this
+                #self._unreserve_job_and_decrement_user(job)
+        self.response['response'] = 'OK'
+        self.response['pids_to_kill'] = pids_to_kill
+        """
         if len(pids_to_kill) == 0:
             self.response['error'] = 'No jobs for user:',user,'in queue'
         else:
@@ -882,7 +1170,7 @@ class JobQueue:
 
             self.response['response'] = 'OK'
             self.response['pids_to_kill'] = pids_to_kill
-
+        """
 
     def _process_notification(self, message):
         notifi = message.get('notification',None)
@@ -911,10 +1199,8 @@ class JobQueue:
         found = False
         for i,job in enumerate(self.queue):
             if job['pid'] == pid:
-                job.UnSpool()
-                if job['status'] == 'run':
-                    self.cluster.Unreserve(job['hosts'])
-                    job['status'] = 'done'
+
+                self._unreserve_job_and_decrement_user(job)
 
                 del self.queue[i]
                 self.response['response'] = 'OK'

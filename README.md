@@ -11,18 +11,20 @@ be run by any user and other users schedule jobs using a client.  When
 scheduled to run, the client logs into the appropriate node using ssh and then
 executes the job.
 
-For best results, users should have ssh keys and an ssh agent running to allow
-ssh login to the nodes without typing their pass-phrase.  When submitting many
-jobs, it is appropriate to use "nohup" and put the client in the background.
+Users should have ssh keys and an ssh agent running to allow ssh login to the
+nodes without typing their pass-phrase.
 
 The only queue currently supported is a very simple matching queue with
-priorities.  This is **very** simple: jobs are put in the queue in order they
-arrive.  Each time the queue is refreshed, the first one that can run will run,
-with higher priority jobs checked first.  There is also a special priority
-"block" that blocks other jobs until it can run.  A TODO is to make this
-smarter so it only blocks jobs that directly compete for needed resources.
+priorities and limits.  This is **very** simple: jobs are put in the queue in
+order they arrive.  Each time the queue is refreshed, the first one that can
+run will run, with higher priority jobs checked first.  Users can set
+requirements that must be met for jobs to run, e.g. machines must have a
+certain amount of memory or number of cores, or be from a specific group of
+machines. There is a special priority "block" that blocks other jobs until it
+can run.  Users can also set limits on the number of jobs they run and/or the
+number of cores they use.  These limits help relieve congestion.
 
-Another queue could be plugged in easily if desired.
+Another queue could be plugged in if desired.
 
 The wq Script
 -------------
@@ -43,34 +45,28 @@ Submitting Jobs
 You can either submit using a job file, written in YAML, or by sending the
 commands as an option
 
-    wq sub job_file 
+    wq sub -b job_file1 job_file2 ...
     wq sub -c command
+    wq sub job_file 
 
-The job file contains a "command" and a set of requirements; see the Job Files
-section for more details.  You can also send requirements using -r/--require
+A job file contains a "command" and a set of requirements; see the Job Files
+section for more details.  
+
+If -b/--batch is sent, the job or jobs are submitted in batch mode in the
+**background**, whereas normaly jobs are kept in the foreground.  Batch mode
+also allows submission of multiple jobs. When submitting multiple jobs, a short
+delay is observed between submissions to prevent overloading the server. 
+
+When not using batch mode, you can also send requirements using -r/--require
     
     wq sub -r requirements job_file
     wq sub -r requirements -c command
 
-Requirements sent using -r will over-ride those in the job file.  For
-a list of available requirements fields, see the Requirements sub-section.
+Requirements sent using -r will over-ride those in the job file.  For a list of
+available requirements fields, see the Requirements sub-section.
 
 Note if you need to keep the outputs of your command, you need to redirect them
 to files yourself.
-
-### Putting Jobs in the Background
-
-You may want to submit a large number of jobs at once.  This is most convenient
-if the jobs go into the background.  The best way to do this is using nohup and
-redirecting the output to a file.  This puts stdout/stderr into a logfile
-
-    nohup wq sub job_file &> logfile  &
-
-As shown above, when using nohup, you should redirect the wq outputs to files;
-otherwise the output will just go to a file called nohup.out in your current
-working directory.  Note this output is just the output of the wq script; your
-commands should take care of their own stdout/stdin.
-
 
 ###  Job Files
 
@@ -78,21 +74,21 @@ The job files and requirements are all in YAML syntax
 <http://en.wikipedia.org/wiki/YAML>.  For example, to run the command "dostuff"
 on a single core this would be the job file
 
-    command: dostuff -i /some/input -o /some/output
+    command: dostuff 1> dostuff.out 2> dostuff.err
 
 Don't forget the space between the colon ":" and the value.  The command can
-actually be a full script.  All you have to is put a pipe symbol "|" after
-command: and then indent the lines.  For example
+actually be a full script.  Just put a **pipe symbol "|"** after command: and
+then **indent the lines**.  For example
 
     command: |
         source ~/.bashrc
         cd ~/mydata
-        cat data.txt | awk '{print $3}' > list.txt
+        cat data.txt | awk '{print $3}' 1> list.txt 2> list.err
 
 You can also put requirements in the job file.  For example, to grab 3 cores
 and only use  nodes from groups gen1 and gen2, but not group slow
 
-    command: dostuff -i /some/input -o /some/output
+    command: dostuff 1> dostuff.out 2> dostuff.err
     N: 3
     group: [gen1, gen3]
     notgroup: slow
@@ -128,7 +124,8 @@ You can specify requirements on the command line using -r/--require.
 Each requirement is valid YAML. Note, however, that each element is separated
 by a semicolon, which is **not** valid YAML.  Internally the semicolons are
 replaced by newlines.  Also, you are are allowed to leave off the required
-space between colon ":" and value; these are put in for you.  After these
+space between colon ":" and value; again this is **not** valid YAML but these
+are put in for you just to allow compact requirements strings.  After these
 pre-processing steps, the requirements are parsed just like a job file.
 
 If you need a semicolon in your requirements, or if adding a space after colons
@@ -149,6 +146,7 @@ is the full list
 * N - The number of nodes or cores, depending on the mode.
 * group - Select cores or nodes from the specified group or groups.  This can be a scalar or list
 * notgroup - Select cores or nodes from machines not in the specified group or groups.
+* host - The host name. When mode is byhost, you must also send this requirement
 * min_cores - Limit to nodes with at least this many cores.  Currently only applies when mode is *bynode* (should this work for bycore selections?).
 * min_mem - Limit to nodes with at least this much memory in GB.  Currently only applies when mode is *bycore*, *bycore1*, *bynode*.
 * X - This determines if ssh X display forwarding is used, default is False. For yes use true,1 for no use false,0
@@ -184,7 +182,7 @@ Here is a full, commented example
     N: 5
 
     # Select from this group(s)
-    group: gen1
+    group: new
 
     # Do not select from this set of groups
     notgroup: [slow,crappy]
@@ -214,6 +212,23 @@ to send the X requirement.  e.g.
 Note you can use tcsh if that is your login shell.  In this scenario, your
 environment will be set up as normal.
 
+Placing limits on how many jobs you run or cores you use
+--------------------------------------------------------
+
+You can limit the number of jobs you can run at once, or the number
+of cores you use.  For example, to limit it 25 jobs
+
+    wq limit "Njobs: 25"
+
+You can also specify Ncores, or even combine them
+
+    wq limit "Njobs: 25; Ncores: 100"
+
+These data are saved in a file on disk and reloaded when the server is
+restarted.  You can remove limits by setting them to -1, e.g.
+
+    wq limit "Njobs: -1; Ncores: -1"
+
 Tips and Tricks
 ---------------
 
@@ -225,22 +240,16 @@ Tips and Tricks
   You can also just run a script that sets up your environment and runs the
   command.
 
-* If you don't want to submit a batch job in the background using nohup, you
-  can run the command "screen" and then run a command series that is followed
-  by "exit". This will free up the slot when you finish.  
-
-        wq sub -c screen
-        command1; command2; exit
-
 Getting Statistics For the Cluster and Queue
 --------------------------------------------
 
 ### Job Listings 
 
-To get a job listing us "ls".  Send -f or --full to see a full list of
-nodes for each job and the full command line. Send -u/--user to restrict
-the job list to a particular user or list of users (comma separated).
-
+To get a job listing us "ls".  Send -f or --full to see a full job list as a
+YAML file.  This includes the full nodes list and the full command line.  You
+can read the YAML from this stream and process it as you wish. Send -u/--user
+to restrict the job list to a particular user or list of users (comma
+separated).
 
     wq ls
     wq ls -f
@@ -249,12 +258,22 @@ the job list to a particular user or list of users (comma separated).
 
 Here is an example of a normal listing
 
-    Pid   User Status Priority Ncores Nhosts Command t_in      t_run    
-    2530  anze R      med      132    11     runner  12h50m27s 12h50m27s
-    3246  anze R      med      104    13     bash    12h24m28s 12h24m28s
-    18743 anze W      med      -      -      mpirun  29m52s    -        
+    Pid   User St Pri Nc Nh Host0            Tq      Trun Cmd     
+    29939 anze R  med 2  1  astro0029 15h09m58s 15h09m58s run23
+    29944 anze W  low -  -  -         15h09m42s         - mock_4_5
+    29950 anze R  med 2  1  astro0010 15h09m18s 12h42m55s run75
     Jobs: 3 Running: 2 Waiting: 1
 
+Pid is the process id, St is the status (W for waiting, R for running), Pri is
+the priority, Nc is the number of cores, Nh is the number of hosts/nodes, Host0
+is the first host in the hosts list, Tq is the time the job has been in the
+queue, Trun is the time it has been running, and Cmd is the job_name, if given
+in the requirements, otherwise it is the first word in the command line.
+
+The default job listing will always have a fixed number of columns except for
+the summary line. White space in job names will be replaced by dashes "-" to
+guarantee this is always true.  This guarantees you can run the output through
+programs like awk.
 
 ### Cluster and Queue Status
 
@@ -283,6 +302,19 @@ Here is an example
     [****....]      astro0032  32 gen3      
     [........]      astro0033  32 gen3      
 
+
+### User information
+
+Using the users command, you can list the users of the system, the number of
+jobs running, the number of cores used, and the user's limits:
+
+    wq users
+
+Here is an example listing
+
+    User      Njobs  Ncores  Limits
+    esheldon  10     80      {Ncores:100;Njobs:10}
+    anze      35     35      {}
 
 Refreshing the Queue
 --------------------
@@ -318,7 +350,14 @@ The format is
 
 
 The mem is in gigabytes, and can be floating point.  The groups are optional
-and comma separated.  You can change the port for sockets using -p; 
+and comma separated.  
+
+Unless you are just testing, you **almost certainly** want to run it with nohup
+and redirect the output
+
+    nohup serve desc 1> server.out 2> serve.err &
+
+You can change the port for sockets using -p; 
 
     wq -p portnum serve descfile
 
@@ -326,6 +365,20 @@ the clients will also need to use that port.
 
     wq -p portnum sub jobfile
 
+### The Spool Directory
+
+The job and user data are kept in the spool directory, ~/wqspool by
+default.  So if you restart the job from a different account, remember to
+specify -s/--spool when starting the server.
+
+    wq serve -s spool_dir desc
+
+### Restarting the server
+
+When you restart the server, all jobs and user data will be reloaded.  Note the
+port will typically be "in use" from the previous instance for 30 seconds or
+so, so be patient; it is no big deal for the server to be off for a while, it
+will catch up.  Users will just have to wait a bit to submit jobs.
 
 Installation
 ------------

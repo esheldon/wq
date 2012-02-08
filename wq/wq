@@ -25,7 +25,7 @@ e.g.
 
 import socket
 import sys
-import json
+import yaml
 import os
 import signal 
 import wq
@@ -81,28 +81,27 @@ class ServerWrapper:
     def execute(self):
         self.srv.run()
 
-class Lister(dict):
+class JobLister(dict):
     """
     usage: wq ls [options]
 
-    print the jobs in the queue to stdout.  If -f/--full is sent, the full
-    command line is displayed and the full host list is displayed.  Normally,
-    only the first part of the command is shown, and only the number of hosts
-    is shown.  If -u/--user is sent, the listing is restricted to that
-    user/users.
+    print the job list to stdout.  
+    
+    If -u/--user is sent, the listing is restricted to that user/users.
 
-    """
+    If -f/--full is sent, the full job listing is given.  This is a yaml
+    document that can be read and processed to provide a customised listing.\n"""
 
     def __init__(self, args):
         #Command.__init__(self, args)
         self._process_args(args)
 
     def _process_args(self, args):
-        parser=OptionParser(Lister.__doc__)
+        parser=OptionParser(JobLister.__doc__)
         parser.add_option("-u", "--user", default=None, 
                           help="Only list jobs for the user.  can be a comma separated list")
         parser.add_option("-f", "--full", action='store_true',
-                          help="Give a more detailed listing")
+                          help="Give a full job listing as a YAML stream.")
 
         options, args = parser.parse_args(args)
         self.user = options.user
@@ -118,10 +117,16 @@ class Lister(dict):
 
 
         if self.full:
-            hname='hosts'
-        else:
-            hname='nhosts'
-        names = ['pid','user','status','priority','ncores',hname,'command','time_sub','time_run']
+            if self.user is not None:
+                show=[r for r in resp['response'] if r['user'] in self.user]
+            else:
+                show = resp['response']
+            if len(show) > 0:
+                print yaml.dump(show)
+
+            return
+
+        names = ['pid','user','st','pri','nc','nh','host0','Tq','Trun','cmd']
 
         lens={}
         for k in names:
@@ -142,27 +147,36 @@ class Lister(dict):
                 this={}
                 this['pid'] = r['pid']
                 this['user'] = r['user']
-                this['priority'] = r['priority']
-                this['status'] = self._get_status(r)
-                this['ncores'] = self._get_ncores(r)
+                this['pri'] = r['priority']
+                this['st'] = self._get_status(r)
+                this['nc'] = self._get_ncores(r)
                 # this may replace command with job_name, if it exists
-                this['command'] = self._get_command(r)
-                this['time_sub'] = self._get_time_in(r,timenow)
-                this['time_run'] = self._get_time_run(r,timenow)
+                this['cmd'] = self._get_command(r)
+                this['Tq'] = self._get_time_in(r,timenow)
+                this['Trun'] = self._get_time_run(r,timenow)
 
-                if self.full:
-                    this['hosts'] = self._get_hosts(r)
-                else:
-                    this['nhosts'] = self._get_nhosts(r)
+                this['nh'] = self._get_nhosts(r)
+
+                # this is the first host on the list
+                this['host0'] = self._get_host0(r)
                 
+
+                # for sorting
+                this['time_sub'] = r['time_sub']
+
                 for k in this:
-                    lens[k] = max(lens[k], len(('%s' % this[k])))
+                    if k in lens:
+                        lens[k] = max(lens[k], len(('%s' % this[k])))
                 
                 lines.append(this)
 
         fmt = []
         for k in names:
-            fmt.append('%('+k+')-'+str(lens[k])+'s')
+            if k in ['Tq','Trun']:
+                align=''
+            else:
+                align='-'
+            fmt.append('%('+k+')'+align+str(lens[k])+'s')
         fmt = ' '.join(fmt)
         fmt = ' '+fmt
 
@@ -170,9 +184,11 @@ class Lister(dict):
         # this is the header for each column
         if len(lines) > 0:
             print fmt % {'pid':'Pid','user':'User',
-                         'status':'Status', 'priority':'Priority', 'ncores':'Ncores',
-                         hname:hname.capitalize(),'command':'Command','time_sub':'t_in','time_run':'t_run'}
-        for l in lines:
+                         'st':'St', 'pri':'Pri', 'nc':'Nc',
+                         'nh':'Nh','host0':'Host0',
+                         'cmd':'Cmd','Tq':'Tq','Trun':'Trun'}
+
+        for l in sorted(lines, key=lambda x: x['time_sub']):
             print fmt % l
 
         njobs = nrun+nwait
@@ -198,14 +214,18 @@ class Lister(dict):
         nm = int (ds/60)
         ds -= nm*60
         ns = ds
+
         r=''
-        if (nd>0):
-            r+=str(nd)+'d'
-        if (nh>0):
-            r+=str(nh)+'h'
-        if (nm>0):
-            r+=str(nm)+'m'
-        r+=str(ns)+'s'
+
+        if nd > 0:
+            r = '%dd%02dh%02dm' % (nd,nh,nm)
+        elif nh > 0:
+            r = '%02dh%02dm%02ds' % (nh,nm,ns)
+        elif nm > 0:
+            r = '%02dm%02ds' % (nm,ns)
+        else:
+            r = '%02ds' % ns
+
         return r
                   
 
@@ -219,8 +239,22 @@ class Lister(dict):
         else:
             return '-'
 
+    def _get_host0(self, r):
+        """
+        Get the first host in the list
+        """
+        if r['status'] != 'run':
+            return '-'
+
+        if not r['hosts']:
+            return '-'
+        else:
+            return r['hosts'][0]
 
     def _get_hosts(self, r):
+        """
+        this is obsolete
+        """
         if r['status'] != 'run':
             return '-'
 
@@ -257,12 +291,17 @@ class Lister(dict):
 
     def _get_command(self, r):
         if 'job_name' in r['require']:
-            return r['require']['job_name']
-
-        if self.full:
-            return r['commandline']
+            c = r['require']['job_name']
         else:
-            return r['commandline'].split()[0]
+            if self.full:
+                c = r['commandline']
+            else:
+                c = r['commandline'].split()[0]
+
+        # remove spaces from name so we can use awk on
+        # the output of wq ls
+        c = '-'.join(str(c).split())
+        return c
 
 class Stats(dict):
     """
@@ -284,6 +323,55 @@ class Stats(dict):
         status=resp['response']
 
         wq.server.print_stat(status)
+
+class UsersLister(dict):
+    """
+    usage: wq users
+
+    print user info for the system
+    """
+
+    def __init__(self, args):
+        parser=OptionParser(Stats.__doc__)
+        options, args = parser.parse_args(args)
+
+    def execute(self):
+        message={}
+        message['command'] = 'users'
+
+        resp = send_message(message)
+
+        users=resp['response']
+
+        wq.server.print_users(users)
+
+class Limiter(dict):
+    """
+    usage: wq limit "key1:val1; key2:val2; ..."
+
+    print user info for the system
+    """
+
+    def __init__(self, args):
+        parser=OptionParser(Stats.__doc__)
+        options, args = parser.parse_args(args)
+
+        if len(args) < 1:
+            parser.print_help()
+            sys.exit(1)
+
+        self.limits = _process_singleline_yaml(args[0])
+
+    def execute(self):
+        message={}
+        message['command'] = 'limit'
+        message['user'] = os.environ['USER']
+        message['limits'] = self.limits
+
+        resp = send_message(message)
+
+        print resp['response']
+
 
 class Refresher(dict):
     """
@@ -376,45 +464,84 @@ class Remover(dict):
         else:
             return True
 
+def _process_singleline_yaml(data):
+    import re
+
+    yaml_data={}
+    if data is None:
+        return yaml_data
+
+    # convert semicolon to newline
+    r = re.sub(';\s*', '\n', data)
+    # make sure there is a space between : and value
+    r = r.replace(':',': ')
+    
+    yaml_data = yaml.load(r)
+
+    return yaml_data
+
 
 
 class Submitter(dict):
     """
     usage: wq sub [options] [args]
 
-    two basic modes:
-        1) 
-            wq sub -r require job_file
+    There are three modes.  Note you can add -r/--require to each of these
+    *except* batch mode.  -r/--require will over-ride requirements in job files.
 
-        Where job_file is in YAML format and has a command and a set of
-        requirements.  -r/--require will over-ride requirements in the job
-        file.  the long form of -r is --require
+        - Send a command as an argument.
 
-        2)
-            wq sub -r require -c command
+                wq sub -c command
 
-        The command is just a string.  You probably want to double quote it.
+          The command is just a string.  You probably want to double quote it.
+
+        - Submit a job file
+
+                wq sub job_file
+
+          The job stays in the foreground, so this is only useful for
+          interactive jobs where you need to specify complex job requirements.
+
+        - Submit one or more job files in batch mode.
+
+                wq sub -b job_file1 job_file2 ....
+
+          Each job will be submitted in the background.  This is the preferred
+          method for non-interactive jobs.
+
     """
     def __init__(self, args):
-        #Command.__init__(self, args)
         self._process_args(args)
 
     def _process_args(self, args):
         parser=OptionParser(Submitter.__doc__)
         parser.add_option("-r", "--require", default=None, help="optional requirements for job")
+        parser.add_option("-b", "--batch", action='store_true', help="Submit jobs in batch mode.")
         parser.add_option("-c", "--command", default=None, help="The command to run as a string")
 
         options, args = parser.parse_args(args)
 
         self['require_opt'] = options.require
 
-        if len(args) > 0:
+        # batch mode is special; just store the job files and let
+        # execute() deal properly with them
+        self.isbatch=False
+        if len(args) > 0 and options.batch:
+            # we just store the files and later run them when
+            # execute is done
+            self.isbatch=True
+            self.job_files = args[:]
+            return
+
+        if options.command is not None:
+            commandline = options.command
+            reqs = {}
+        elif len(args) > 0:
             # a job file was sent
             job_file = args[0]
             commandline, reqs = self._process_job_file(job_file)
         else:
-            commandline = options.command
-            reqs = {}
+            raise ValueError
         
 
         if commandline is None:
@@ -422,7 +549,8 @@ class Submitter(dict):
             sys.exit(1)
 
         # requirements sent using -r/--require over-ride
-        reqs_from_opt = self._process_require_opt(self['require_opt'])
+        #reqs_from_opt = self._process_require_opt(self['require_opt'])
+        reqs_from_opt = _process_singleline_yaml(self['require_opt'])
 
         for ro in reqs_from_opt:
             reqs[ro] = reqs_from_opt[ro]
@@ -430,8 +558,29 @@ class Submitter(dict):
         self['commandline'] = commandline
         self['require'] = reqs
 
+    def _batch_submit_joblist(self, job_files):
+        njob = len(job_files)
+        for f in job_files:
+            self._batch_submit_job(f)
+            if njob > 1:
+                time.sleep(1)
+
+    def _batch_submit_job(self, job_file):
+        """
+        For batch mode we call wq again with a single job file and
+        no requirements
+        """
+
+        print 'submitting',job_file,
+        log_file = open(job_file+'.wqlog', 'w')
+        port = str(pars['port'])
+        p=subprocess.Popen(['nohup','wq','-p',port,'sub',job_file], 
+                           env=os.environ,
+                           stderr=subprocess.STDOUT, 
+                           stdout=log_file)
+        print 'pid:',p.pid
+
     def _process_job_file(self, fname):
-        import yaml
 
         reqs = yaml.load(open(fname))
         if 'command' not in reqs:
@@ -444,7 +593,6 @@ class Submitter(dict):
         return commandline, reqs
 
     def _process_require_opt(self, require_opt):
-        import yaml
         import re
 
         reqs={}
@@ -481,20 +629,23 @@ class Submitter(dict):
         self.message['notification']='done'
         #sres = send_message(self.message, timeout=SOCK_TIMEOUT, crash_on_timeout=True)
         sres = send_message(self.message)
-        print sres
+        self.print_res(sres)
         exit(0)
                                         
     def make_command_list(self, target_machine, command, require):
         # first, force pseudo tty; this is key to make sure command
         # dies if this client dies
-        cmdlist = ['ssh','-t', '-t']
+        # also -A forwards ssh agent
+        cmdlist = ['ssh','-t', '-t','-A']
 
         # should we forward X? default is no no.  This is in the
         # requirements as
         #   X: true or X: 1 for yes (anything evaluates as True in python)
         #   X: false or X: 0 for no
         xforward = require.get('X',False)
-        if not xforward:
+        if xforward:
+            cmdlist.append('-X')
+        else:
             cmdlist.append('-x')
 
         # full command, we first change directory to CWD
@@ -517,6 +668,11 @@ class Submitter(dict):
 
         For MPI jobs, a host file can be created.
         """
+
+        if self.isbatch:
+            self._batch_submit_joblist(self.job_files)
+            return
+
         message = {}
         message['command'] = 'sub'
         message['pid'] = os.getpid()
@@ -578,7 +734,14 @@ class Submitter(dict):
         # the missing pid
         #sres = send_message(self.message, timeout=SOCK_TIMEOUT, crash_on_timeout=True)
         sres = send_message(self.message)
-        print sres
+        self.print_res(sres)
+
+    def print_res(self, res):
+        import pprint
+        for k in res:
+            kk = k+': '
+            pf = pprint.pformat(res[k])
+            print '%-15s %s' % (kk,pf)
 
 def socket_connect(sock, conninfo, crash_on_timeout=False):
     # crash will only happen if timeouts have been enabled, otherwise we just
@@ -621,7 +784,7 @@ def send_message(message, timeout=None, crash_on_timeout=False):
 
     rdict=None
     try:
-        jmess=json.dumps(message)
+        jmess=yaml.dump(message)
 
         wq.server.socket_send(sock, jmess)
         data = wq.server.socket_recieve(sock, pars['max_buffsize'])
@@ -629,9 +792,9 @@ def send_message(message, timeout=None, crash_on_timeout=False):
         sock.close()
 
         try:
-            rdict = json.loads(data)
+            rdict = yaml.load(data)
         except:
-            print 'json err:'
+            print 'YAML err:'
             print data
             sys.exit(1)
 
@@ -644,6 +807,7 @@ def send_message(message, timeout=None, crash_on_timeout=False):
     except:
         es=sys.exc_info()
         print 'caught exception type:', es[0],'details:',es[1]
+        rdict=None
     finally:
         sock.close()
 
@@ -657,9 +821,13 @@ def get_command_obj(args, **keys):
     if args[0] == 'sub':
         return Submitter(args[1:])
     elif args[0] == 'ls':
-        return Lister(args[1:])
+        return JobLister(args[1:])
     elif args[0] == 'stat':
         return Stats(args[1:])
+    elif args[0] == 'users':
+        return UsersLister(args[1:])
+    elif args[0] == 'limit':
+        return Limiter(args[1:])
     elif args[0] == 'rm':
         return Remover(args[1:])
     elif args[0] == 'refresh':
@@ -723,6 +891,18 @@ def main():
         cmd_obj.execute()
     except KeyboardInterrupt:
         pass
+    except IOError, e:
+        # this is most certainly a "broken pipe" type error when someone pipes
+        # to head or something
+        es=sys.exc_info()
+        if 'Broken pipe' not in es[1]:
+            sys.stderr.write('caught exception type: %s  details: %s\n' % (es[0],es[1]))
+    finally:
+        # this helps with pipes, needed in addition to above catch of IOError
+        try:
+            sys.stdout.flush()
+        except:
+            pass
 
 if __name__=="__main__":
     main()
