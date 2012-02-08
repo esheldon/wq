@@ -259,9 +259,9 @@ separated).
 Here is an example of a normal listing
 
     Pid   User St Pri Nc Nh Host0            Tq      Trun Cmd     
-    29939 anze R  med 2  1  astro0029 15h09m58s 15h09m58s run23
-    29944 anze W  low -  -  -         15h09m42s         - mock_4_5
-    29950 anze R  med 2  1  astro0010 15h09m18s 12h42m55s run75
+    29939 jack R  med 2  1  astro0029 15h09m58s 15h09m58s run23
+    29944 jack W  low -  -  -         15h09m42s         - mock_4_5
+    29950 jack R  med 2  1  astro0010 15h09m18s 12h42m55s run75
     Jobs: 3 Running: 2 Waiting: 1
 
 Pid is the process id, St is the status (W for waiting, R for running), Pri is
