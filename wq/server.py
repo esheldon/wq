@@ -27,7 +27,8 @@ DEFAULT_SOCK_TIMEOUT = 30.0
 DEFAULT_WAIT_SLEEP = 10.0
 DEFAULT_SPOOL_DIR = "~/wqspool/"
 
-PRIORITY_LIST= ['block','low','med','high']
+#PRIORITY_LIST= ['block','low','med','high']
+PRIORITY_LIST= ['block','high','med','low']
 
 def print_stat(status):
     """
