@@ -350,7 +350,10 @@ class Limiter(dict):
     """
     usage: wq limit "key1:val1; key2:val2; ..."
 
-    print user info for the system
+    Place limits on the user such as
+        wq limit "Njobs: 10"
+        wq limit "Ncores: 120"
+        wq limit "Ncores: 120; Njobs: 25"
     """
 
     def __init__(self, args):
