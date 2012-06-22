@@ -10,6 +10,7 @@ options for each command
     stat:       Get the status of the cluster/queue.
     rm:         Remove a job or all jobs for a user.
     refresh:    Force a refresh of the job queue.
+    limit:      Place limits on a user such as Ncores or Njobs.
     serve:      Run a server.
 
 To get help on each command, use -h, for example
@@ -353,7 +354,7 @@ class Limiter(dict):
     """
 
     def __init__(self, args):
-        parser=OptionParser(Stats.__doc__)
+        parser=OptionParser(Limiter.__doc__)
         options, args = parser.parse_args(args)
 
         if len(args) < 1:
