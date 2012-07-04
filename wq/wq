@@ -414,8 +414,7 @@ class Remover(dict):
         if pid == 'all':
             self.pid=['all']
         else:
-            pid = pid.split(',')
-            self.pid = [int(p) for p in pid]
+            self.pid = [int(p) for p in args]
 
     def execute(self):
         for pid in self.pid:
