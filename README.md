@@ -329,13 +329,15 @@ Removing Jobs
 To remove a job or jobs from the queue, send the "rm" command
 
     wq rm pid
+    wq rm pid1 pid2 pid3 ...
 
-Where pid is the process id you can get using "wq ls".  The pid can be a comma
-separated list.  To remove all of your jobs
+Where pid is the process id you can get using "wq ls".  To remove all of your
+jobs
 
     wq rm all
 
-Only root can remove jobs for another user.
+Only root can remove jobs for another user.  Note previously the list had
+to be comma separated.
 
 Starting a Server
 -----------------
