@@ -38,18 +38,29 @@ def print_stat(status):
     nodes=status['nodes']
     lines=[]
     lens={}
+    totalActiveCores=status['ncores']
     for k in ['usage','host','mem','groups']:
         lens[k] = len(k)
     for d in nodes:
-
-        usage = '['+'*'*d['used']+'.'*(d['ncores']-d['used'])+']'
-        l={'usage':usage,
-           'host':d['hostname'],
-           'mem':'%g' % d['mem'],
-           'groups':','.join(d['grps'])}
-        for n in lens:
-            lens[n] = max(lens[n],len(l[n]))
-        lines.append(l)
+	if(d['online']==True):
+        	usage = '['+'*'*d['used']+'.'*(d['ncores']-d['used'])+']'
+        	l={'usage':usage,
+           	'host':d['hostname'],
+           	'mem':'%g' % d['mem'],
+          	'groups':','.join(d['grps'])}
+        	for n in lens:
+            	    lens[n] = max(lens[n],len(l[n]))
+        	lines.append(l)
+	if(d['online']==False):
+		usage = '['+'X'*d['ncores']+']'
+        	l={'usage':usage,
+           	'host':d['hostname'],
+           	'mem':'%g' % d['mem'],
+          	'groups':','.join(d['grps'])}
+        	for n in lens:
+            	    lens[n] = max(lens[n],len(l[n]))
+        	lines.append(l)
+		totalActiveCores=totalActiveCores-d['ncores']
 
     fmt = ' %(usage)-'+str(lens['usage'])+'s  %(host)-'+str(lens['host'])+'s '
     fmt += ' %(mem)'+str(lens['mem'])+'s %(groups)-'+str(lens['groups'])+'s'
@@ -59,10 +70,11 @@ def print_stat(status):
     print fmt % hdr
     for l in lines:
         print fmt % l
-
-    perc=100.*status['used']/status['ncores']
+    if (totalActiveCores>0):
+        perc=100.*status['used']/totalActiveCores
+    else: perc=00.00
     print
-    print ' Used cores: %i/%i (%3.1f%%)' % (status['used'],status['ncores'],perc)
+    print ' Used cores: %i/%i (%3.1f%%) (%i are offline)' % (status['used'],totalActiveCores,perc,status['ncores']-totalActiveCores)
 
 def print_users(users):
     """
@@ -242,6 +254,10 @@ class Node:
         self.ncores = int(ncores)
         self.mem    = float(mem)
         self.used   = 0
+	self.online = True
+
+    def setOnline(self,truthValue):
+	self.online=truthValue
 
     def Reserve(self):
         self.used+=1
@@ -284,7 +300,7 @@ class Cluster:
         nodes.sort()
         for h in nodes:
             nds.append({'hostname':h,'used':self.nodes[h].used,'ncores':self.nodes[h].ncores, \
-                       'mem':self.nodes[h].mem, 'grps':self.nodes[h].grps})
+                       'mem':self.nodes[h].mem, 'grps':self.nodes[h].grps,'online':self.nodes[h].online})
             
             tot+=self.nodes[h].ncores
             used+=self.nodes[h].used
@@ -546,7 +562,6 @@ class Job(dict):
 
 
     def _match_bycore(self, cluster):
-
         pmatch=False
         match=False
         hosts=[] # actually matched hosts
@@ -565,8 +580,9 @@ class Job(dict):
 
         for h in sorted(cluster.nodes):
             nd = cluster.nodes[h]
-
-            if nd.mem < min_mem:
+            if(not nd.online):
+                continue
+            if (nd.mem < min_mem):
                 continue
 
             ## is this node actually what we want
@@ -606,7 +622,7 @@ class Job(dict):
                 N-=nfree
                 for x in xrange(nfree):
                     hosts.append(h)
-
+ 
         if (not pmatch):
             reason = 'Not enough cores or mem satistifying condition.'
         elif (not match):
@@ -639,10 +655,11 @@ class Job(dict):
 
         for h in sorted(cluster.nodes):
             nd = cluster.nodes[h]
-
-            if nd.mem < min_mem:
+            if(not nd.online):
                 continue
-
+            if (nd.mem < min_mem):
+                continue
+            
             ## is this node actually what we want
             ing = self._get_req_list(reqs, 'group')
             if len(ing) > 0: ##any group in any group
@@ -713,14 +730,14 @@ class Job(dict):
         min_cores,reason=_get_dict_int(reqs, 'min_cores', 0)
         if reason:
             return pmatch, match, hosts, reason
-
+        
         for h in sorted(cluster.nodes):
             nd = cluster.nodes[h]
-
-            if nd.ncores < min_cores:
+            if(not nd.online):
                 continue
-
-            if nd.mem < min_mem:
+            if (nd.mem < min_mem):
+                continue
+            if nd.ncores < min_cores:
                 continue
 
             ## is this node actually what we want
@@ -771,7 +788,7 @@ class Job(dict):
         reason=''
 
         reqs = self['require']
-
+        
         h = reqs.get('host',None)
         if h is None:
             reason = "'host' field not in requirements"
@@ -783,6 +800,10 @@ class Job(dict):
             return pmatch, match, hosts, reason
 
         nd = cluster.nodes[h]
+
+        if (not nd.online):
+            reason = "host is offline"
+            return pmatch, match, hosts, reason
 
         N,reason=_get_dict_int(reqs, 'N', 1)
         if reason:
@@ -818,6 +839,8 @@ class Job(dict):
         else:
             for h in sorted(cluster.nodes):
                 nd = cluster.nodes[h]
+                if(not nd.online):
+                    continue
                 if g in nd.grps:
                     pmatch=True
                     match=True
@@ -1000,17 +1023,49 @@ class JobQueue:
         elif command == 'refresh':
             self.refresh()
             self.response['response'] = 'OK'
+	elif command =='node':
+	    self._process_node_request(message)
         else:
             self.response['error'] = ("only support 'sub','gethosts', "
-                                      "'ls','stat','users','rm','notify',"
+                                      "'ls','stat','users','rm','notify','node'"
                                       "'refresh' commands")
+    def _process_node_request(self, message):
+
+	nodename = message['node']
+	if (not message['yamline'].has_key('status')):
+            self.response['error']=('Need to supply status keyword.')
+            return None
+        
+	status=message['yamline']['status']
+	
+ 	if (status=='online'):
+		setstat=True
+	elif (status=='offline'):
+		setstat=False
+	else:
+		self.response['error']=("Don't understand this status")
+		return None
+	
+	found=False
+	
+	for inode in self.cluster.nodes.keys():
+		if (inode==nodename):
+			self.cluster.nodes[inode].setOnline(setstat)
+			found=True
+			self.response['response'] = 'OK'
+			break
+	
+	if (not found):
+		self.response['error'] = ("Host not found.")
+    	
+	return None
 
     def _blocking_job(self):
         for job in self.queue:
             if job['priority'] == 'block' and job['status'] == 'wait':
                 return job['pid']
         return None
-
+	
 
     def _process_submit_request(self, message):
         pid = message.get('pid')

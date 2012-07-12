@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+#7_10_12 copy
 """
     %prog [options] command [command options]
 
@@ -12,6 +13,7 @@ options for each command
     refresh:    Force a refresh of the job queue.
     limit:      Place limits on a user such as Ncores or Njobs.
     serve:      Run a server.
+    node: 	Set systems from offline to online or vice versa.
 
 To get help on each command, use -h, for example
     %prog sub -h
@@ -364,7 +366,7 @@ class Limiter(dict):
             parser.print_help()
             sys.exit(1)
 
-        self.limits = _process_singleline_yaml(args[0])
+        self.limits = _process_singleline_ml(args[0])
 
     def execute(self):
         message={}
@@ -376,6 +378,37 @@ class Limiter(dict):
 
         print resp['response']
 
+class NodeCommand(dict):
+    """
+    usage: wq node astro001 astro002 "status:online;"
+
+    set a node from offline to online or vice versa
+    """
+    
+    def __init__(self, args):
+        parser=OptionParser(NodeCommand.__doc__)
+        options, args = parser.parse_args(args)
+
+        if len(args) < 2:
+            parser.print_help()
+            sys.exit(1)
+	self.node = args[0]
+        self.yamline = _process_singleline_yaml(args[1])
+
+        #if(not self.yamline.has_key('status')):
+        #    #Throw Error Here
+        #    print "Error: Did you mean 'status'?"
+        #    sys.exit(1)
+
+    def execute(self):
+	    message={}
+	    message['command'] = 'node'
+	    message['user'] = os.environ['USER']
+	    message['node'] = self.node
+	    message['yamline'] = self.yamline
+	    resp = send_message(message) 
+	    print resp['response']
+	
 
 class Refresher(dict):
     """
@@ -496,8 +529,7 @@ class Submitter(dict):
 
                 wq sub -c command
 
-          The command is just a string.  You probably want to double quote it.
-
+          The command is just a string.  You probably want to double quote it
         - Submit a job file
 
                 wq sub job_file
@@ -837,6 +869,8 @@ def get_command_obj(args, **keys):
         return Refresher(args[1:])
     elif args[0] == 'serve':
         return ServerWrapper(args[1:], **keys)
+    elif args[0] == 'node':
+	return NodeCommand(args[1:])
     else:
         return None
 
