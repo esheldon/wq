@@ -149,6 +149,8 @@ class Server:
         self.queue = JobQueue(cluster_file, **keys)
         self.buffsize = keys.get('buffsize',DEFAULT_MAX_BUFFSIZE)
 
+        self.verbosity = 1
+
     def open_socket(self):
         host = self.keys.get('host',DEFAULT_HOST)
         port = self.keys.get('port',DEFAULT_PORT)
@@ -172,7 +174,8 @@ class Server:
                 # we just reached the timeout, refresh the queue
                 print 'refreshing queue'
                 self.queue.refresh()
-                print_stat(self.queue.cluster.Status())
+                if self.verbosity > 1:
+                    print_stat(self.queue.cluster.Status())
 
 
     def run(self):
@@ -204,7 +207,9 @@ class Server:
                 if not data: 
                     continue
 
-                print 'got YAML request:',data
+                print 'got YAML request'
+                if self.verbosity > 1:
+                    print data
                 try:
                     message = yaml.load(data)
                 except:
@@ -224,7 +229,9 @@ class Server:
 
                 # timeout mode is non-blocking under the hood, can't use
                 # sendall but we wouldn't want the exception possibility anyway
-                print 'response:',yaml_response
+
+                if self.verbosity > 2:
+                    print 'response:',yaml_response
                 socket_send(conn, yaml_response)
 
                 print 'closing conn'
@@ -340,7 +347,7 @@ class Users:
     """
     def __init__(self):
         self.users = {}
-
+        self.verbosity = 1
     def __contains__(self, user):
         return user in self.users
 
@@ -453,6 +460,7 @@ class Job(dict):
         self['time_sub'] = time.time()
         self['spool_fname'] = None
 
+        self.verbosity = 1
 
     def Spool(self):
         if self['status'] == 'ready':
@@ -628,7 +636,8 @@ class Job(dict):
         elif (not match):
             reason = 'Not enough free cores.'
     
-        print pmatch, match, hosts, reason
+        if self.verbosity > 1:
+            print pmatch, match, hosts, reason
         return pmatch, match, hosts, reason
 
 
@@ -880,6 +889,8 @@ class JobQueue:
         print_users(self.users.asdict())
 
         print_stat(self.cluster.Status())
+
+        self.verbosity = 1
 
     def setup_spool(self):
         self.spool_dir = os.path.expanduser(self.keys.get('spool_dir',DEFAULT_SPOOL_DIR))
@@ -1168,7 +1179,8 @@ class JobQueue:
             self.response['error'] = 'Expected some limits to be sent'
             return
 
-        print 'limits sent:',limits
+        if self.verbosity > 1:
+            print 'limits sent:',limits
         # we have a reference here, might want to hide this
         udata = self.users.get(user)
         for l,v in limits.items():
@@ -1268,15 +1280,6 @@ class JobQueue:
         if not found:
             self.response['error'] = 'pid %s not found' % pid
 
-
-
-    # Not needed anymore
-    # def _signal_start(self, pid):
-    #     import signal
-    #     try:
-    #         os.kill(pid, signal.SIGUSR1)
-    #     except OSError:
-    #         print 'pid %s no longer exists' % pid
 
     def _pid_exists(self, pid):        
         """ Check For the existence of a unix pid. """
