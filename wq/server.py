@@ -172,7 +172,8 @@ class Server:
                 return conn, addr
             except socket.timeout:
                 # we just reached the timeout, refresh the queue
-                print 'refreshing queue'
+                if self.verbosity > 1:
+                    print 'refreshing queue'
                 self.queue.refresh()
                 if self.verbosity > 1:
                     print_stat(self.queue.cluster.Status())
