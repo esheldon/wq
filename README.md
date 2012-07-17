@@ -244,11 +244,10 @@ Getting Statistics For the Cluster and Queue
 
 ### Job Listings 
 
-To get a job listing us "ls".  Send -f or --full to see a full job list as a
-YAML file.  This includes the full nodes list and the full command line.  You
-can read the YAML from this stream and process it as you wish. Send -u/--user
-to restrict the job list to a particular user or list of users (comma
-separated).
+To get a job listing us "ls".  Send -f or --full to get the job list as a YAML
+stream.   You can read the YAML from this stream and process it as you wish.
+Send -u/--user to restrict the job list to a particular user or list of users
+(comma separated).
 
     wq ls
     wq ls -f
