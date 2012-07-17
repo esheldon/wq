@@ -1021,6 +1021,8 @@ class JobQueue:
             self._process_gethosts(message)
         elif command in ['ls']:
             self._process_listing_request(message)
+        elif command in ['lsfull']:
+            self._process_full_listing_request(message)
         elif command in ['stat']:
             self._process_status_request(message)
         elif command in ['users']:
@@ -1155,6 +1157,49 @@ class JobQueue:
         
 
     def _process_listing_request(self, message):
+        """
+        'user'
+        'pid'
+        'priority'
+        'time_sub'
+        'time_run'
+        'status'
+        'hosts'
+
+        These we can maybe not send if we extract job_name
+            or beginning of command
+            'require'
+            'commandline'
+        """
+        listing = []
+        for job in self.queue:
+            r = {}
+            r['user'] = job['user']
+            r['pid'] = job['pid']
+            r['priority'] = job['priority']
+            r['time_sub'] = job['time_sub']
+            r['time_run'] = job['time_run']
+            r['status'] = job['status']
+            if r['status'] == 'run':
+                r['hosts'] = job['hosts']
+            else:
+                # should we do this?
+                r['hosts'] = []
+
+            if 'reason' in job:
+                r['reason'] = job['reason']
+            if 'job_name' in job['require']:
+                r['job_name'] = job['require']['job_name']
+            else:
+                r['job_name'] = job['commandline'].split()[0]
+            listing.append(r)
+        
+        self.response['response'] = listing
+
+    def _process_full_listing_request(self, message):
+        """
+        Send everything
+        """
         listing = []
         for job in self.queue:
             listing.append(job.asdict())

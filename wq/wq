@@ -293,6 +293,9 @@ class JobLister(dict):
                 return 'W'
 
     def _get_command(self, r):
+        c = r['job_name']
+        
+        """
         if 'job_name' in r['require']:
             c = r['require']['job_name']
         else:
@@ -301,6 +304,7 @@ class JobLister(dict):
             else:
                 c = r['commandline'].split()[0]
 
+        """
         # remove spaces from name so we can use awk on
         # the output of wq ls
         c = '-'.join(str(c).split())
@@ -934,12 +938,17 @@ def main():
         es=sys.exc_info()
         if 'Broken pipe' not in es[1]:
             sys.stderr.write('caught exception type: %s  details: %s\n' % (es[0],es[1]))
+            raise
+    except:
+        print "Unexpected error:", sys.exc_info()[0]
+        raise
     finally:
         # this helps with pipes, needed in addition to above catch of IOError
         try:
             sys.stdout.flush()
         except:
             pass
+
 
 if __name__=="__main__":
     main()
