@@ -482,7 +482,7 @@ class Remover(dict):
                     cc+=1
                 if (self._pid_exists(pidtokill)):
                     #bastard wouldn't die
-                    os.kill(pid,signal.SIGKILL)
+                    os.kill(pidtokill,signal.SIGKILL)
                     time.sleep(1)
 
             ## Now refresh to remove it from queue
