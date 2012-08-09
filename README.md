@@ -65,8 +65,10 @@ When not using batch mode, you can also send requirements using -r/--require
 Requirements sent using -r will over-ride those in the job file.  For a list of
 available requirements fields, see the Requirements sub-section.
 
-Note if you need to keep the outputs of your command, you need to redirect them
-to files yourself.
+Note if you need to keep the outputs of your command, you may need to redirect
+them to files yourself.  If you use batch mode -b, standard output and standard
+error are redirected to a file called {wqscript}.wqlog, where wqscript is the
+name of the yaml wq script.
 
 ###  Job Files
 
@@ -289,16 +291,16 @@ Here is an example
 
     usage           host      mem groups    
     [************]  astro0001  32 gen4,gen45
-    [************]  astro0004  32 gen4,gen45
-    [********....]  astro0010  48 gen5,gen45
-    [............]  astro0011  48 gen5,gen45
-    [....]          astro0016   8 gen1,slow 
-    [*...]          astro0017   8 gen2,slow 
-    [....]          astro0018   8 gen2,slow 
-    [....]          astro0020   8 gen2,slow 
-    [********]      astro0031  32 gen3      
-    [****....]      astro0032  32 gen3      
-    [........]      astro0033  32 gen3      
+    [************]  astro0002  32 gen4,gen45
+    [********....]  astro0003  48 gen5,gen45
+    [............]  astro0004  48 gen5,gen45
+    [....]          astro0005   8 gen1,slow 
+    [*...]          astro0006   8 gen2,slow 
+    [....]          astro0007   8 gen2,slow 
+    [....]          astro0008   8 gen2,slow 
+    [********]      astro0009  32 gen3      
+    [****....]      astro0010  32 gen3      
+    [........]      astro0011  32 gen3      
 
 
 ### User information
