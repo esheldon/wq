@@ -263,6 +263,9 @@ class Node:
         self.used   = 0
 	self.online = True
 
+    def getGroups(self):
+	return self.grps
+
     def setOnline(self,truthValue):
 	self.online=truthValue
 
@@ -490,27 +493,30 @@ class Job(dict):
             self['spool_fname']=None
     
 
-    def match(self, cluster):
+    def match(self, cluster, blocked_groups):
         if self['status'] == 'nevermatch':
             return
         if self['status'] != 'wait':
             return
-
+        ## We don't block ourserlves
+        if self['priority'] == 'block':
+	    blocked_groups=[]
+ 
         # default to bycore
         submit_mode = self['require'].get('mode','bycore')
         # can also add reasons from the match methods
         # later
 
         if (submit_mode=='bycore'):
-            pmatch, match, hosts, reason = self._match_bycore(cluster)
+            pmatch, match, hosts, reason = self._match_bycore(cluster,blocked_groups)
         elif (submit_mode=='bycore1'):
-            pmatch, match, hosts, reason = self._match_bycore1(cluster)
+            pmatch, match, hosts, reason = self._match_bycore1(cluster,blocked_groups)
         elif (submit_mode=='bynode'):
-            pmatch, match, hosts, reason = self._match_bynode(cluster)
+            pmatch, match, hosts, reason = self._match_bynode(cluster,blocked_groups)
         elif (submit_mode=='byhost'):
-            pmatch, match, hosts,reason = self._match_byhost(cluster)
+            pmatch, match, hosts,reason = self._match_byhost(cluster,blocked_groups)
         elif (submit_mode=='bygroup'):
-            pmatch, match, hosts,reason = self._match_bygroup(cluster)
+            pmatch, match, hosts,reason = self._match_bygroup(cluster,blocked_groups)
         else:
             pmatch=False ## unknown request never mathces
             reason="bad submit_mode '%s'" % submit_mode
@@ -569,7 +575,7 @@ class Job(dict):
         return val
 
 
-    def _match_bycore(self, cluster):
+    def _match_bycore(self, cluster, bgroups):
         pmatch=False
         match=False
         hosts=[] # actually matched hosts
@@ -586,6 +592,7 @@ class Job(dict):
         if reason:
             return pmatch, match, hosts, reason
 
+        block_flag=False
         for h in sorted(cluster.nodes):
             nd = cluster.nodes[h]
             if(not nd.online):
@@ -620,6 +627,17 @@ class Job(dict):
                 Np-=nd.ncores
 
             nfree= nd.ncores-nd.used
+
+            if len(bgroups) > 0: ##any group in any group
+		ok=True
+                for g in bgroups:
+                    if g in nd.grps:
+                        ok=False
+			block_flag=True
+                        break
+                if (not ok):
+                    nfree=0
+
             if (nfree>=N):
                 for x in xrange(N):
                     hosts.append(h)
@@ -634,7 +652,10 @@ class Job(dict):
         if (not pmatch):
             reason = 'Not enough cores or mem satistifying condition.'
         elif (not match):
-            reason = 'Not enough free cores.'
+ 	    if (block_flag):
+		reason = 'Not enough free cores or cores waiting for a blocking job.'
+	    else:
+            	reason = 'Not enough free cores.'
     
         if self.verbosity > 1:
             print pmatch, match, hosts, reason
@@ -642,7 +663,7 @@ class Job(dict):
 
 
 
-    def _match_bycore1(self, cluster):
+    def _match_bycore1(self, cluster,bgroups):
         """
         Get cores all from one node.
         """
@@ -662,6 +683,7 @@ class Job(dict):
         if reason:
             return pmatch, match, hosts, reason
 
+        block_flag=False
         for h in sorted(cluster.nodes):
             nd = cluster.nodes[h]
             if(not nd.online):
@@ -696,6 +718,17 @@ class Job(dict):
                 pass
 
             nfree= nd.ncores-nd.used
+            
+            if len(bgroups) > 0: ##any group in any group
+                ok=True
+                for g in bgroups:
+                    if g in nd.grps:
+                        ok=False
+			block_flag=True
+                        break
+                if (not ok):
+                    nfree=0 
+
             if (nfree>=N):
                 for x in xrange(N):
                     hosts.append(h)
@@ -708,17 +741,15 @@ class Job(dict):
         if (not pmatch):
             reason = 'Not a node with that many cores.'
         elif (not match):
-            reason = 'Not enough free cores on any one node.'
+     	    if (block_flag):
+		reason = 'Not enough free cores or cores waiting for a blocking job.'
+	    else:
+		reason = 'Not enough free cores on any one node.'
     
         return pmatch, match, hosts, reason
+       
 
-
-
-
-        
-
-
-    def _match_bynode(self, cluster):
+    def _match_bynode(self, cluster,bgroups):
         pmatch=False
         match=False
         hosts=[] # actually matched hosts
@@ -739,7 +770,8 @@ class Job(dict):
         min_cores,reason=_get_dict_int(reqs, 'min_cores', 0)
         if reason:
             return pmatch, match, hosts, reason
-        
+
+        block_flag=False
         for h in sorted(cluster.nodes):
             nd = cluster.nodes[h]
             if(not nd.online):
@@ -773,7 +805,16 @@ class Job(dict):
             Np-=1
             if (Np==0):
                 pmatch=True
-            if (nd.used==0):
+
+            ok=True
+	    if len(bgroups) > 0: ##any group in any group ##########nfree?
+                for g in bgroups:
+                    if g in nd.grps:
+                        ok=False
+			block_flag=True
+                        break
+
+            if (nd.used==0) and ok:
                 N-=1
                 for x in xrange(nd.ncores):
                     hosts.append(h)
@@ -784,12 +825,15 @@ class Job(dict):
         if (not pmatch):
             reason = 'Not enough total cores satistifying condition.'
         elif (not match):
-            reason = 'Not enough free cores.'
+             if (block_flag):
+		reason = 'Not enough free cores or cores waiting for a blocking job.'
+             else:
+            	reason = 'Not enough free cores.'
     
 
         return pmatch, match, hosts, reason
 
-    def _match_byhost(self, cluster):
+    def _match_byhost(self, cluster, bgroups):
 
         pmatch=False
         match=False
@@ -814,6 +858,11 @@ class Job(dict):
             reason = "host is offline"
             return pmatch, match, hosts, reason
 
+	for g in nd.grps:
+		if g in bgroups:
+			reason="host in blocked group"
+			return pmatch, match, hosts, reason
+	
         N,reason=_get_dict_int(reqs, 'N', 1)
         if reason:
             return pmatch, match, hosts, reason
@@ -833,7 +882,7 @@ class Job(dict):
         return pmatch, match, hosts, reason
 
 
-    def _match_bygroup(self, cluster):
+    def _match_bygroup(self, cluster, bgroups):
 
         pmatch=False
         match=False
@@ -857,6 +906,16 @@ class Job(dict):
                         match=False ## we actually demand the entire group
                         reason = 'Host '+h+' not entirely free.'
                         break
+                    ok=True
+                    for g in nd.grps:
+		    	if g in bgroups:
+			   ok=False
+                           break
+                    if (not ok):
+                        match=False
+                        reason = 'Host '+h+' in a blocked group.'
+                        break
+
                     else:
                         for x in range(nd.ncores):
                             hosts.append(h)
@@ -959,7 +1018,6 @@ class JobQueue:
 
         """
 
-        block_pid=None
         pids_to_del = []
         for priority in PRIORITY_LIST:
             for i,job in enumerate(self.queue):
@@ -977,12 +1035,9 @@ class JobQueue:
                     if not job.match_users(self.users):
                         # blame yourself
                         job['reason'] = 'user limits exceeded'
-                    elif block_pid is not None:
-                        # blame the wait on the blocking job
-                        job['reason'] = 'waiting for block from job %s' % block_pid
                     else:
                         # see if we can now run the job
-                        job.match(self.cluster)
+                        job.match(self.cluster, self._blocked_groups())
                         
                         if job['status'] == 'ready':
                             self.cluster.Reserve(job['hosts'])
@@ -992,10 +1047,6 @@ class JobQueue:
 
                             # keep statistics for each user
                             self.users.increment_user(job['user'], job['hosts'])
-                        elif priority == 'block':
-                            # special case: if we hit a blocking job that is
-                            # waiting, we will not let any others run
-                            block_pid = job['pid']
 
         # rebuild the queue without these items
         if len(pids_to_del) > 0:
@@ -1078,7 +1129,34 @@ class JobQueue:
             if job['priority'] == 'block' and job['status'] == 'wait':
                 return job['pid']
         return None
-	
+    
+    def _blocked_groups(self):
+	bg=[]
+        block_all=False
+	for job in self.queue:
+	    reqs = job['require']
+	    if job['priority'] == 'block' and job['status'] == 'wait':
+                
+                reqGroups = job._get_req_list(reqs, 'group')
+                if (len(reqGroups)==0):
+                    ## Dude didn't specify group, we need to block all
+                    block_all=True
+                    break
+                else:
+                    for group in reqGroups:
+			if group not in bg:
+                            bg.append(group)
+        if (block_all):
+            for n in self.cluster.nodes.keys():
+                #Enough to take 
+		cg = self.cluster.nodes[n].getGroups()
+                if (len(cg)>0):
+                    ### Enough to add just the first group, this will block it
+                    if cg[0] not in bg:
+                        bg.append(cg[0])
+	return bg
+
+
 
     def _process_submit_request(self, message):
         pid = message.get('pid')
@@ -1096,7 +1174,7 @@ class JobQueue:
         newjob = Job(message, **keys)
 
         # no side effects on cluster inside here
-        newjob.match(self.cluster)
+        newjob.match(self.cluster, self._blocked_groups())
 
         if newjob['status'] == 'nevermatch':
             self.response['error'] = newjob['reason']
@@ -1107,20 +1185,14 @@ class JobQueue:
                 # this job
                 newjob['status'] = 'wait'
                 newjob['reason'] = 'user limits exceeded'
-            else:
-                block_pid = self._blocking_job()
-                if block_pid is not None:
-                    # Tell the new job to wait and blame the blocking job
-                    newjob['status'] = 'wait'
-                    newjob['reason'] = 'waiting for block from job %s' % block_pid
-                elif newjob['status'] == 'ready':
+            elif newjob['status'] == 'ready':
 
-                    # only by reaching here to we reserve the hosts and
-                    # update user info
-                    self.cluster.Reserve(newjob['hosts'])
-
-                    # keep statistics for each user
-                    self.users.increment_user(newjob['user'], newjob['hosts'])
+                # only by reaching here to we reserve the hosts and
+                # update user info
+                self.cluster.Reserve(newjob['hosts'])
+                
+                # keep statistics for each user
+                self.users.increment_user(newjob['user'], newjob['hosts'])
 
             # this will create a pid.wait or pid.run depending on status
             # if status='ready', sets status to 'run' once the pid file is written
