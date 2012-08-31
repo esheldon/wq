@@ -526,7 +526,7 @@ class Job(dict):
             if match:
                 self['hosts']=hosts
                 self['status']='ready'
-
+                self['reason']=''
             else:
                 self['status']='wait'
                 self['reason']=reason
