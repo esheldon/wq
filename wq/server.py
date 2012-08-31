@@ -1044,7 +1044,8 @@ class JobQueue:
                         # later)
                         if (priority!='block') and (not have_blocked_groups):
                             blocked_groups=self._blocked_groups();
-                                                    
+                            have_blocked_groups = True
+                            
                         job.match(self.cluster, blocked_groups)
                         
                         if job['status'] == 'ready':
