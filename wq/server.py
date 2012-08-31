@@ -1019,6 +1019,8 @@ class JobQueue:
         """
 
         pids_to_del = []
+        blocked_groups=[];
+        have_blocked_groups=False
         for priority in PRIORITY_LIST:
             for i,job in enumerate(self.queue):
                 if job['priority'] != priority:
@@ -1036,8 +1038,14 @@ class JobQueue:
                         # blame yourself
                         job['reason'] = 'user limits exceeded'
                     else:
-                        # see if we can now run the job
-                        job.match(self.cluster, self._blocked_groups())
+                        # see if we can now run the job.
+                        # After all blocked jobs have been scheduled (or not)
+                        # we updaate the list of blocked groups (it can't change
+                        # later)
+                        if (priority!='block') and (not have_blocked_groups):
+                            blocked_groups=self._blocked_groups();
+                                                    
+                        job.match(self.cluster, blocked_groups)
                         
                         if job['status'] == 'ready':
                             self.cluster.Reserve(job['hosts'])
