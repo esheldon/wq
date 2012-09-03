@@ -370,7 +370,7 @@ class Limiter(dict):
             parser.print_help()
             sys.exit(1)
 
-        self.limits = _process_singleline_ml(args[0])
+        self.limits = _process_singleline_yaml(args[0])
 
     def execute(self):
         message={}
