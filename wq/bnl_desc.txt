@@ -31,4 +31,4 @@ astro0030 8 32 gen3,gen345,new2,a30
 astro0031 8 32 gen3,gen345,new2,a31
 astro0032 8 32 gen3,gen345,new2,a32
 astro0033 8 32 gen3,gen345,new2,a33
-tutti     6 24 tutti
+tutti.astro.bnl.gov     6 24 tutti
