@@ -672,27 +672,32 @@ class Submitter(dict):
         exit(0)
                                         
     def make_command_list(self, target_machine, command, require):
-        # first, force pseudo tty; this is key to make sure command
-        # dies if this client dies
-        # also -A forwards ssh agent
-        cmdlist = ['ssh','-t', '-t','-A']
-
-        # should we forward X? default is no no.  This is in the
-        # requirements as
-        #   X: true or X: 1 for yes (anything evaluates as True in python)
-        #   X: false or X: 0 for no
-        xforward = require.get('X',False)
-        if xforward:
-            cmdlist.append('-X')
-        else:
-            cmdlist.append('-x')
-
         # full command, we first change directory to CWD
         pwd =os.getcwd()
         full_command='cd '+pwd+'; '+command
 
-        cmdlist.append(target_machine)
-        cmdlist.append(full_command)
+        if target_machine=='localhost':
+            shell=os.environ['SHELL']
+            cmdlist = [shell,'-c',command]
+        else:
+            # first, force pseudo tty; this is key to make sure command
+            # dies if this client dies
+            # also -A forwards ssh agent
+            cmdlist = ['ssh','-t', '-t','-A']
+
+            # should we forward X? default is no no.  This is in the
+            # requirements as
+            #   X: true or X: 1 for yes (anything evaluates as True in python)
+            #   X: false or X: 0 for no
+            xforward = require.get('X',False)
+            if xforward:
+                cmdlist.append('-X')
+            else:
+                cmdlist.append('-x')
+
+
+            cmdlist.append(target_machine)
+            cmdlist.append(full_command)
 
         return cmdlist
 
@@ -761,7 +766,6 @@ class Submitter(dict):
 
         cmdlist = self.make_command_list(target,command,self['require'])
         self.remoteprocess= subprocess.Popen(cmdlist)
-        #self.remoteprocess= subprocess.Popen(['ssh','-t', '-t',target,'cd '+pwd+'; '+command])
         self.remoteprocess.wait()
 
         ### now we notify done.
