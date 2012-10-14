@@ -18,6 +18,8 @@ import os
 import glob
 import cPickle
 
+import select
+
 DEFAULT_HOST = ''      # Symbolic name meaning all available interfaces
 DEFAULT_PORT = 51093   # Arbitrary non-privileged port
 DEFAULT_MAX_BUFFSIZE = 4096
@@ -154,35 +156,18 @@ class Server:
     def open_socket(self):
         host = self.keys.get('host',DEFAULT_HOST)
         port = self.keys.get('port',DEFAULT_PORT)
-        timeout = self.keys.get('timeout',DEFAULT_SOCK_TIMEOUT)
+        self.timeout = self.keys.get('timeout',DEFAULT_SOCK_TIMEOUT)
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.bind((host, port))
-        self.sock.settimeout(timeout)
-
-    def wait_for_connection(self):
-        """
-        we want a chance to look for disappearing pids 
-        even if we don't get a signal from any clients
-        """
-        while True:
-            try:
-                conn, addr = self.sock.accept()
-                print 'Connected by', addr
-                return conn, addr
-            except socket.timeout:
-                # we just reached the timeout, refresh the queue
-                print 'refreshing queue'
-                self.queue.refresh()
-                if self.verbosity > 1:
-                    print_stat(self.queue.cluster.Status())
-
+        #self.sock.settimeout(self.timeout)
+        self.sock.setblocking(0)
+        self.sock.listen(4)
 
     def run(self):
         self.open_socket()
-        self.sock.listen(1)
         try:
-            self.doconn()
+            self._run()
         except KeyboardInterrupt:
             pass
         except:
@@ -195,7 +180,83 @@ class Server:
             print 'close'
             self.sock.close()
 
-    def doconn(self):
+
+    def _run(self):
+        """
+        """
+        server=self.sock
+        input=[server]
+        while True:
+            try:
+
+                inputready,[],[] = select.select(input,[],[],self.timeout) 
+                if len(inputready) == 0:
+                    self.refresh_queue()
+                    continue
+
+                for sock in inputready:
+                    if sock == server:
+                        # the server socket got a client request
+                        client, addr = server.accept()
+                        print 'Connected by', addr
+                        # it goes in the queue
+                        input.append(client) 
+                    else:
+                        # handle clients.
+                        client=sock
+                        self.process_client_request(client)
+                        # should we shutdown() here?
+                        client.close()
+                        input.remove(client) 
+
+            except socket.error, e:
+                es=sys.exc_info()
+                if 'Broken pipe' in es[1]:
+                    # this happens sometimes when someone ctrl-c in the middle
+                    # of talking with the server
+                    print 'caught exception type:', es[0],'details:',es[1]
+                    print 'ignoring Broken pipe exception'
+                    pass
+                else:
+                    raise e
+
+    def process_client_request(self, client):
+        """
+        client is a socket
+
+        We should be ready to recieve since we used select()
+        """
+        data = socket_recieve(client,self.buffsize)
+        if not data:
+            return
+
+        print 'got client request'
+        if self.verbosity > 1:
+            print data
+        try:
+            message = yaml.load(data)
+        except:
+            ret = {"error":"could not process YAML request: '%s'" % data}
+            ret = yaml.dump(ret)
+            socket_send(client, ret)
+            return
+
+        self.queue.process_message(message)
+        response = self.queue.get_response()
+
+        try:
+            yaml_response = yaml.dump(response)
+        except:
+            err = {"error":"server error creating YAML response from '%s'" % ret}
+            yaml_response = yaml.dump(err)
+
+        if self.verbosity > 2:
+            print 'response:',yaml_response
+        socket_send(client, yaml_response)
+
+
+
+    def doconn_old(self):
         while True:
             try:
 
@@ -247,6 +308,33 @@ class Server:
                     pass
                 else:
                     raise e
+
+
+
+    def wait_for_connection(self):
+        """
+        we want a chance to look for disappearing pids 
+        even if we don't get a signal from any clients
+        """
+        while True:
+            try:
+                conn, addr = self.sock.accept()
+                print 'Connected by', addr
+                return conn, addr
+            except socket.timeout:
+                # we just reached the timeout, refresh the queue
+                print 'refreshing queue'
+                self.queue.refresh()
+                if self.verbosity > 1:
+                    print_stat(self.queue.cluster.Status())
+
+
+    def refresh_queue(self):
+        print 'refreshing queue'
+        self.queue.refresh()
+        if self.verbosity > 1:
+            print_stat(self.queue.cluster.Status())
+
 class Node:
     def __init__ (self, line):
         ls = line.split()

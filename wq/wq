@@ -610,14 +610,29 @@ class Submitter(dict):
         no requirements
         """
 
-        print 'submitting',job_file,
-        log_file = open(job_file+'.wqlog', 'w')
+        print 'submitting',job_file
         port = str(pars['port'])
+
+        req=''
+        if self['require_opt'] is not None:
+            req='-r %s' % self['require_opt']
+
+        command="""
+            nohup wq -p "{port}" sub {req} "{jobf}" &> "{logf}" &
+        """.format(port=port,
+                   jobf=job_file,
+                   logf=job_file+'.wqlog',
+                   req=req)
+        os.system(command)
+
+        """
+        log_file = open(job_file+'.wqlog', 'w')
         p=subprocess.Popen(['nohup','wq','-p',port,'sub',job_file], 
                            env=os.environ,
                            stderr=subprocess.STDOUT, 
                            stdout=log_file)
         print 'pid:',p.pid
+        """
 
     def _process_job_file(self, fname):
 
