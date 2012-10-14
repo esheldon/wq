@@ -246,7 +246,7 @@ class Server:
         if not data:
             return
 
-        print 'got client request'
+        print 'processing client request'
         if self.verbosity > 1:
             print data
         try:
@@ -1179,6 +1179,7 @@ class JobQueue:
 
     def _process_command(self, message):
         command = message['command']
+        print '  got',command,'request'
         if command in ['sub']:
             self._process_submit_request(message)
         elif command == 'gethosts':
