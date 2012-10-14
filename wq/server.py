@@ -208,6 +208,7 @@ class Server:
                 inputready,[],[] = select.select(input,[],[],self.timeout) 
                 if len(inputready) == 0:
                     self.refresh_queue()
+                    #self.cleanup_failed_sockets()
                     continue
 
                 for sock in inputready:
@@ -221,7 +222,7 @@ class Server:
                         # handle clients.
                         client=sock
                         self.process_client_request(client)
-                        # should we shutdown() here?
+                        client.shutdown(socket.SHUT_RDWR)
                         client.close()
                         input.remove(client) 
 
@@ -263,7 +264,7 @@ class Server:
         try:
             yaml_response = yaml.dump(response)
         except:
-            err = {"error":"server error creating YAML response from '%s'" % ret}
+            err = {"error":"server error creating YAML response; keyboard interrupt?"}
             yaml_response = yaml.dump(err)
 
         if self.verbosity > 2:
@@ -350,6 +351,12 @@ class Server:
         self.queue.refresh()
         if self.verbosity > 1:
             print_stat(self.queue.cluster.Status())
+
+    def cleanup_failed_sockets(self, inputs, server):
+        for sock in inputs:
+            if sock != server:
+                pass
+                #select([sock],[],[],0)
 
 class Node:
     def __init__ (self, line):
