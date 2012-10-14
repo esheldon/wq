@@ -47,7 +47,8 @@ pars={'host':wq.DEFAULT_HOST,      # Symbolic name meaning all available interfa
       'max_buffsize':wq.DEFAULT_MAX_BUFFSIZE}
 
 # note this is different from the timeout for the server.
-SOCK_TIMEOUT = 45.0
+# this is not currently used
+#SOCK_TIMEOUT = 45.0
 
 class ServerWrapper:
     """

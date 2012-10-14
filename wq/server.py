@@ -183,6 +183,21 @@ class Server:
 
     def _run(self):
         """
+
+        Use select to tell us when either the server socket got a request or if
+        clients are ready to be read.  
+        
+        Multiple clients are handled at once, they just go in a queue and are
+        dealt with later (this queue is not the job queue, just a simple list).
+        The server is in the same queue so if it gets another request before a
+        client is ready to be read, then another client will be queued for
+        later processing. Note we are also listening with a backlog of 4 on
+        the server socket.
+
+        Currently the clients are *not* dealt with in parallel.  This would be
+        tricky since each client request can result in a change in the queue
+        state.
+
         """
         server=self.sock
         input=[server]
