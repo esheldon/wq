@@ -121,7 +121,7 @@ def socket_send(conn, mess):
     reslen=len(mess)
     tnsent=conn.send(mess)
     nsent = tnsent
-    if nsent < reslen:
+    while nsent < reslen:
         tnsent=conn.send(mess[nsent:])
         nsent += tnsent
 
