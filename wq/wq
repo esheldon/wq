@@ -616,7 +616,7 @@ class Submitter(dict):
 
         req=''
         if self['require_opt'] is not None:
-            req='-r %s' % self['require_opt']
+            req='-r "%s"' % self['require_opt']
 
         command="""
             nohup wq -p "{port}" sub {req} "{jobf}" &> "{logf}" &
@@ -824,7 +824,7 @@ def socket_send(sock, mess):
     reslen=len(mess)
     tnsent=conn.send(mess)
     nsent = tnsent
-    if nsent < reslen:
+    while nsent < reslen:
         tnsent=conn.send(mess[nsent:])
         nsent += tnsent
 

@@ -44,25 +44,26 @@ def print_stat(status):
     for k in ['usage','host','mem','groups']:
         lens[k] = len(k)
     for d in nodes:
-	if(d['online']==True):
-        	usage = '['+'*'*d['used']+'.'*(d['ncores']-d['used'])+']'
-        	l={'usage':usage,
-           	'host':d['hostname'],
-           	'mem':'%g' % d['mem'],
-          	'groups':','.join(d['grps'])}
-        	for n in lens:
-            	    lens[n] = max(lens[n],len(l[n]))
-        	lines.append(l)
-	if(d['online']==False):
-		usage = '['+'X'*d['ncores']+']'
-        	l={'usage':usage,
-           	'host':d['hostname'],
-           	'mem':'%g' % d['mem'],
-          	'groups':','.join(d['grps'])}
-        	for n in lens:
-            	    lens[n] = max(lens[n],len(l[n]))
-        	lines.append(l)
-		totalActiveCores=totalActiveCores-d['ncores']
+        if d['online']==True:
+            usage = '['+'*'*d['used']+'.'*(d['ncores']-d['used'])+']'
+            l={'usage':usage,
+               'host':d['hostname'],
+               'mem':'%g' % d['mem'],
+               'groups':','.join(d['grps'])}
+            for n in lens:
+                lens[n] = max(lens[n],len(l[n]))
+            lines.append(l)
+        elif d['online']==False:
+            usage = '['+'X'*d['ncores']+']'
+            l={'usage':usage,
+               'host':d['hostname'],
+               'mem':'%g' % d['mem'],
+               'groups':','.join(d['grps'])}
+            for n in lens:
+                lens[n] = max(lens[n],len(l[n]))
+
+            lines.append(l)
+            totalActiveCores=totalActiveCores-d['ncores']
 
     fmt = ' %(usage)-'+str(lens['usage'])+'s  %(host)-'+str(lens['host'])+'s '
     fmt += ' %(mem)'+str(lens['mem'])+'s %(groups)-'+str(lens['groups'])+'s'
@@ -364,13 +365,13 @@ class Node:
         self.ncores = int(ncores)
         self.mem    = float(mem)
         self.used   = 0
-	self.online = True
+        self.online = True
 
     def getGroups(self):
-	return self.grps
+        return self.grps
 
     def setOnline(self,truthValue):
-	self.online=truthValue
+        self.online=truthValue
 
     def Reserve(self):
         self.used+=1
@@ -603,7 +604,7 @@ class Job(dict):
             return
         ## We don't block ourserlves
         if self['priority'] == 'block':
-	    blocked_groups=[]
+            blocked_groups=[]
  
         # default to bycore
         submit_mode = self['require'].get('mode','bycore')
@@ -732,11 +733,11 @@ class Job(dict):
             nfree= nd.ncores-nd.used
 
             if len(bgroups) > 0: ##any group in any group
-		ok=True
+                ok=True
                 for g in bgroups:
                     if g in nd.grps:
                         ok=False
-			block_flag=True
+                        block_flag=True
                         break
                 if (not ok):
                     nfree=0
@@ -755,10 +756,10 @@ class Job(dict):
         if (not pmatch):
             reason = 'Not enough cores or mem satistifying condition.'
         elif (not match):
- 	    if (block_flag):
-		reason = 'Not enough free cores or cores waiting for a blocking job.'
-	    else:
-            	reason = 'Not enough free cores.'
+            if (block_flag):
+                reason = 'Not enough free cores or cores waiting for a blocking job.'
+            else:
+                reason = 'Not enough free cores.'
     
         if self.verbosity > 1:
             print pmatch, match, hosts, reason
@@ -827,7 +828,7 @@ class Job(dict):
                 for g in bgroups:
                     if g in nd.grps:
                         ok=False
-			block_flag=True
+                        block_flag=True
                         break
                 if (not ok):
                     nfree=0 
@@ -844,10 +845,10 @@ class Job(dict):
         if (not pmatch):
             reason = 'Not a node with that many cores.'
         elif (not match):
-     	    if (block_flag):
-		reason = 'Not enough free cores or cores waiting for a blocking job.'
-	    else:
-		reason = 'Not enough free cores on any one node.'
+            if (block_flag):
+                reason = 'Not enough free cores or cores waiting for a blocking job.'
+            else:
+                reason = 'Not enough free cores on any one node.'
     
         return pmatch, match, hosts, reason
        
@@ -910,11 +911,11 @@ class Job(dict):
                 pmatch=True
 
             ok=True
-	    if len(bgroups) > 0: ##any group in any group ##########nfree?
+            if len(bgroups) > 0: ##any group in any group ##########nfree?
                 for g in bgroups:
                     if g in nd.grps:
                         ok=False
-			block_flag=True
+                        block_flag=True
                         break
 
             if (nd.used==0) and ok:
@@ -929,9 +930,9 @@ class Job(dict):
             reason = 'Not enough total cores satistifying condition.'
         elif (not match):
              if (block_flag):
-		reason = 'Not enough free cores or cores waiting for a blocking job.'
+                 reason = 'Not enough free cores or cores waiting for a blocking job.'
              else:
-            	reason = 'Not enough free cores.'
+                 reason = 'Not enough free cores.'
     
 
         return pmatch, match, hosts, reason
@@ -961,11 +962,11 @@ class Job(dict):
             reason = "host is offline"
             return pmatch, match, hosts, reason
 
-	for g in nd.grps:
-		if g in bgroups:
-			reason="host in blocked group"
-			return pmatch, match, hosts, reason
-	
+        for g in nd.grps:
+            if g in bgroups:
+                reason="host in blocked group"
+                return pmatch, match, hosts, reason
+
         N,reason=_get_dict_int(reqs, 'N', 1)
         if reason:
             return pmatch, match, hosts, reason
@@ -1011,9 +1012,9 @@ class Job(dict):
                         break
                     ok=True
                     for g in nd.grps:
-		    	if g in bgroups:
-			   ok=False
-                           break
+                        if g in bgroups:
+                            ok=False
+                            break
                     if (not ok):
                         match=False
                         reason = 'Host '+h+' in a blocked group.'
@@ -1199,42 +1200,42 @@ class JobQueue:
         elif command == 'refresh':
             self.refresh()
             self.response['response'] = 'OK'
-	elif command =='node':
-	    self._process_node_request(message)
+        elif command =='node':
+            self._process_node_request(message)
         else:
             self.response['error'] = ("only support 'sub','gethosts', "
                                       "'ls','stat','users','rm','notify','node'"
                                       "'refresh' commands")
     def _process_node_request(self, message):
 
-	nodename = message['node']
-	if (not message['yamline'].has_key('status')):
+        nodename = message['node']
+        if (not message['yamline'].has_key('status')):
             self.response['error']=('Need to supply status keyword.')
             return None
         
-	status=message['yamline']['status']
-	
- 	if (status=='online'):
-		setstat=True
-	elif (status=='offline'):
-		setstat=False
-	else:
-		self.response['error']=("Don't understand this status")
-		return None
-	
-	found=False
-	
-	for inode in self.cluster.nodes.keys():
-		if (inode==nodename):
-			self.cluster.nodes[inode].setOnline(setstat)
-			found=True
-			self.response['response'] = 'OK'
-			break
-	
-	if (not found):
-		self.response['error'] = ("Host not found.")
-    	
-	return None
+        status=message['yamline']['status']
+
+        if (status=='online'):
+            setstat=True
+        elif (status=='offline'):
+            setstat=False
+        else:
+            self.response['error']=("Don't understand this status")
+            return None
+
+        found=False
+
+        for inode in self.cluster.nodes.keys():
+            if (inode==nodename):
+                self.cluster.nodes[inode].setOnline(setstat)
+                found=True
+                self.response['response'] = 'OK'
+                break
+
+        if (not found):
+            self.response['error'] = ("Host not found.")
+
+        return None
 
     def _blocking_job(self):
         for job in self.queue:
@@ -1243,11 +1244,11 @@ class JobQueue:
         return None
     
     def _blocked_groups(self):
-	bg=[]
+        bg=[]
         block_all=False
-	for job in self.queue:
-	    reqs = job['require']
-	    if job['priority'] == 'block' and job['status'] == 'wait':
+        for job in self.queue:
+            reqs = job['require']
+            if job['priority'] == 'block' and job['status'] == 'wait':
                 
                 reqGroups = job._get_req_list(reqs, 'group')
                 if (len(reqGroups)==0):
@@ -1256,17 +1257,18 @@ class JobQueue:
                     break
                 else:
                     for group in reqGroups:
-			if group not in bg:
+                        if group not in bg:
                             bg.append(group)
         if (block_all):
             for n in self.cluster.nodes.keys():
                 #Enough to take 
-		cg = self.cluster.nodes[n].getGroups()
+                cg = self.cluster.nodes[n].getGroups()
                 if (len(cg)>0):
                     ### Enough to add just the first group, this will block it
                     if cg[0] not in bg:
                         bg.append(cg[0])
-	return bg
+
+        return bg
 
 
 
