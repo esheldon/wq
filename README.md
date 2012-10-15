@@ -11,9 +11,6 @@ be run by any user and other users schedule jobs using a client.  When
 scheduled to run, the client logs into the appropriate node using ssh and then
 executes the job.
 
-Users should have ssh keys and an ssh agent running to allow ssh login to the
-nodes without typing their pass-phrase.
-
 The only queue currently supported is a very simple matching queue with
 priorities and limits.  This is **very** simple: jobs are put in the queue in
 order they arrive.  Each time the queue is refreshed, the first one that can
@@ -25,6 +22,9 @@ can run.  Users can also set limits on the number of jobs they run and/or the
 number of cores they use.  These limits help relieve congestion.
 
 Another queue could be plugged in if desired.
+
+Users should have ssh configured so that logins between the head node and
+workers can occur without typing a passphrase.
 
 The wq Script
 -------------
