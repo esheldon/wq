@@ -18,13 +18,14 @@ run will run, with higher priority jobs checked first.  Users can set
 requirements that must be met for jobs to run, e.g. machines must have a
 certain amount of memory or number of cores, or be from a specific group of
 machines. There is a special priority "block" that blocks other jobs until it
-can run.  Users can also set limits on the number of jobs they run and/or the
-number of cores they use.  These limits help relieve congestion.
+can run, and specific groups of machines can be blocked.  Users can also set
+limits on the number of jobs they run and/or the number of cores they use.
+These limits help relieve congestion.
 
-Another queue could be plugged in if desired.
+Another queue could easily be plugged in if desired.
 
-Users should have ssh configured so that logins between the head node and
-workers can occur without typing a passphrase.
+Users should have ssh safely configured so that logins between nodes in the
+cluster can occur without typing a passphrase.
 
 The wq Script
 -------------
@@ -54,13 +55,12 @@ section for more details.
 
 If -b/--batch is sent, the job or jobs are submitted in batch mode in the
 **background**, whereas normaly jobs are kept in the foreground.  Batch mode
-also allows submission of multiple jobs. When submitting multiple jobs, a short
-delay is observed between submissions to prevent overloading the server. 
+also allows submission of multiple jobs.
 
-When not using batch mode, you can also send requirements using -r/--require
+You can also send requirements using -r/--require
     
-    wq sub -r requirements job_file
     wq sub -r requirements -c command
+    wq sub -r requirements -b job_file1 job_file2 ...
 
 Requirements sent using -r will over-ride those in the job file.  For a list of
 available requirements fields, see the Requirements sub-section.
@@ -149,8 +149,8 @@ is the full list
 * group - Select cores or nodes from the specified group or groups.  This can be a scalar or list
 * notgroup - Select cores or nodes from machines not in the specified group or groups.
 * host - The host name. When mode is byhost, you must also send this requirement
-* min_cores - Limit to nodes with at least this many cores.  Currently only applies when mode is *bynode* (should this work for bycore selections?).
-* min_mem - Limit to nodes with at least this much memory in GB.  Currently only applies when mode is *bycore*, *bycore1*, *bynode*.
+* min_cores - Limit to nodes with at least this many cores.  Only applies when mode is *bynode*.
+* min_mem - Limit to nodes with at least this much memory in GB.  Only applies when mode is *bycore*, *bycore1*, *bynode*.
 * X - This determines if ssh X display forwarding is used, default is False. For yes use true,1 for no use false,0
 * priority - Currently should be one of 
  * low - lowest priority
@@ -171,8 +171,6 @@ Here is a full, commented example
         source ~/.bashrc
         mpirun -hostfile hfile ./program
 
-    hostfile: hfile
-
     # show this name in job listings instead of the command
     job_name: dostuff35 
 
@@ -191,6 +189,9 @@ Here is a full, commented example
 
     # require at least this many cores
     min_cores: 8
+
+    # used by MPI jobs
+    hostfile: hfile
 
 ### running an MPI code
 
@@ -319,8 +320,8 @@ Here is an example listing
 Refreshing the Queue
 --------------------
 
-The server refreshes every 30 seconds by default.  To request a refresh
-use the "refresh" command
+The server refreshes approximately every 30 seconds by default.  To request a
+refresh use the "refresh" command
 
     wq refresh
 
@@ -369,9 +370,9 @@ the clients will also need to use that port.
 
 ### The Spool Directory
 
-The job and user data are kept in the spool directory, ~/wqspool by
-default.  So if you restart the job from a different account, remember to
-specify -s/--spool when starting the server.
+The job and user data are kept in the spool directory, ~/wqspool by default.
+So if you restart the server from a different account, remember to specify
+-s/--spool when starting the server.
 
     wq serve -s spool_dir desc
 
