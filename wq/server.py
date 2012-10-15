@@ -18,6 +18,8 @@ import os
 import glob
 import cPickle
 
+import datetime
+
 import select
 
 DEFAULT_HOST = ''      # Symbolic name meaning all available interfaces
@@ -215,7 +217,7 @@ class Server:
                     if sock == server:
                         # the server socket got a client request
                         client, addr = server.accept()
-                        print 'Connected by', addr
+                        print str(datetime.datetime.now()),'Connected by', addr
                         # it goes in the queue
                         input.append(client) 
                     else:
@@ -247,7 +249,7 @@ class Server:
         if not data:
             return
 
-        print 'processing client request'
+        print str(datetime.datetime.now()),'processing client request'
         if self.verbosity > 1:
             print data
         try:
@@ -347,7 +349,7 @@ class Server:
 
 
     def refresh_queue(self):
-        print 'refreshing queue'
+        print str(datetime.datetime.now()),'refreshing queue'
         self.queue.refresh()
         if self.verbosity > 1:
             print_stat(self.queue.cluster.Status())
@@ -1186,7 +1188,7 @@ class JobQueue:
 
     def _process_command(self, message):
         command = message['command']
-        print '  got',command,'request'
+        print str(datetime.datetime.now()),'  got',command,'request'
         if command in ['sub']:
             self._process_submit_request(message)
         elif command == 'gethosts':
