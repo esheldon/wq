@@ -73,11 +73,10 @@ name of the yaml job file.
 ###  Job Files
 
 The job files and requirements are all in YAML syntax
-<http://en.wikipedia.org/wiki/YAML>.  For example, to run the command "dostuff"
-on a single core, and redirect the stdout and stderr to files, this would be
-the job file
+<http://en.wikipedia.org/wiki/YAML>.  For example, this is a job file to run
+the command "dostuff" on a single core.
 
-    command: dostuff 1> dostuff.out 2> dostuff.err
+    command: dostuff
 
 Don't forget the space between the colon ":" and the value.  The command can
 actually be a full script.  Just put a **pipe symbol "|"** after command: and
