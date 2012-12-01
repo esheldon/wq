@@ -67,8 +67,8 @@ available requirements fields, see the Requirements sub-section.
 
 Note if you need to keep the outputs of your command, you may need to redirect
 them to files yourself.  If you use batch mode -b, standard output and standard
-error are redirected to a file called {wqscript}.wqlog, where wqscript is the
-name of the yaml wq script.
+error are redirected to a file called {job_file}.wqlog, where {job_file} is the
+name of the yaml job file.
 
 ###  Job Files
 
@@ -112,7 +112,7 @@ sub-section for a full list of requirements
 In addition to using job files, you can run a command by specifying -c and an
 argument
 
-    wq sub -c script
+    wq sub -c command
 
 Remember to quote commands that have spaces/arguments.   For example, 
 
