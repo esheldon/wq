@@ -222,11 +222,19 @@ class Server:
                         input.append(client) 
                     else:
                         # handle clients.
-                        client=sock
-                        self.process_client_request(client)
-                        client.shutdown(socket.SHUT_RDWR)
-                        client.close()
-                        input.remove(client) 
+                        try:
+                            client=sock
+                            self.process_client_request(client)
+                            client.shutdown(socket.SHUT_RDWR)
+                            client.close()
+                        except socket.error, e:
+                            es=sys.exc_info()
+                            if 'Broken pipe' in es[1] or 'Transport endpoint' in es[1]:
+                                print 'caught exception type:', es[0],'details:',es[1]
+                                print 'ignoring'
+                        finally:
+                            # whatever happens we can't talk to this client any more
+                            input.remove(client) 
 
             except socket.error, e:
                 es=sys.exc_info()
