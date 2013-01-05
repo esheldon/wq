@@ -619,21 +619,12 @@ class Submitter(dict):
             req='-r "%s"' % self['require_opt']
 
         command="""
-            nohup wq -p "{port}" sub {req} "{jobf}" &> "{logf}" &
+            nohup wq -p "{port}" sub {req} "{jobf}" 2>&1 > "{logf}" &
         """.format(port=port,
                    jobf=job_file,
                    logf=job_file+'.wqlog',
                    req=req)
         os.system(command)
-
-        """
-        log_file = open(job_file+'.wqlog', 'w')
-        p=subprocess.Popen(['nohup','wq','-p',port,'sub',job_file], 
-                           env=os.environ,
-                           stderr=subprocess.STDOUT, 
-                           stdout=log_file)
-        print 'pid:',p.pid
-        """
 
     def _process_job_file(self, fname):
 
