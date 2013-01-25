@@ -28,6 +28,7 @@ e.g.
 
 import socket
 import sys
+from sys import stderr
 import yaml
 import os
 import signal 
@@ -42,7 +43,7 @@ _COMMANDS = ['serve','sub','ls','stat','rm','refresh']
 
 # global variables, ick
 # only part is currently changeable through the command line
-pars={'host':wq.DEFAULT_HOST,      # Symbolic name meaning all available interfaces
+PARS={'host':wq.DEFAULT_HOST, # Symbolic name meaning all available interfaces
       'port':wq.DEFAULT_PORT,
       'max_buffsize':wq.DEFAULT_MAX_BUFFSIZE}
 
@@ -80,7 +81,9 @@ class ServerWrapper:
             sys.exit(1)
 
         # these keywords get passed all the way down to JobQueue and Job
-        self.srv = wq.server.Server(args[0], port=pars['port'], spool_dir=spool_dir)
+        self.srv = wq.server.Server(args[0], 
+                                    port=PARS['port'], 
+                                    spool_dir=spool_dir)
 
     def execute(self):
         self.srv.run()
@@ -94,7 +97,8 @@ class JobLister(dict):
     If -u/--user is sent, the listing is restricted to that user/users.
 
     If -f/--full is sent, the full job listing is given.  This is a yaml
-    document that can be read and processed to provide a customised listing.\n"""
+    document that can be read and processed to provide a customised 
+    listing.\n"""
 
     def __init__(self, args):
         #Command.__init__(self, args)
@@ -103,7 +107,8 @@ class JobLister(dict):
     def _process_args(self, args):
         parser=OptionParser(JobLister.__doc__)
         parser.add_option("-u", "--user", default=None, 
-                          help="Only list jobs for the user.  can be a comma separated list")
+                          help=("Only list jobs for the user.  can be "
+                                "a comma separated list"))
         parser.add_option("-f", "--full", action='store_true',
                           help="Give a full job listing as a YAML stream.")
 
@@ -296,16 +301,6 @@ class JobLister(dict):
     def _get_command(self, r):
         c = r['job_name']
         
-        """
-        if 'job_name' in r['require']:
-            c = r['require']['job_name']
-        else:
-            if self.full:
-                c = r['commandline']
-            else:
-                c = r['commandline'].split()[0]
-
-        """
         # remove spaces from name so we can use awk on
         # the output of wq ls
         c = '-'.join(str(c).split())
@@ -381,7 +376,7 @@ class Limiter(dict):
 
         resp = send_message(message)
 
-        print resp['response']
+        print >>stderr,resp['response']
 
 class NodeCommand(dict):
     """
@@ -397,7 +392,7 @@ class NodeCommand(dict):
         if len(args) < 2:
             parser.print_help()
             sys.exit(1)
-	self.node = args[0]
+        self.node = args[0]
         self.yamline = _process_singleline_yaml(args[1])
 
         #if(not self.yamline.has_key('status')):
@@ -406,13 +401,13 @@ class NodeCommand(dict):
         #    sys.exit(1)
 
     def execute(self):
-	    message={}
-	    message['command'] = 'node'
-	    message['user'] = os.environ['USER']
-	    message['node'] = self.node
-	    message['yamline'] = self.yamline
-	    resp = send_message(message) 
-	    print resp['response']
+        message={}
+        message['command'] = 'node'
+        message['user'] = os.environ['USER']
+        message['node'] = self.node
+        message['yamline'] = self.yamline
+        resp = send_message(message) 
+        print >>stderr,resp['response']
 	
 
 class Refresher(dict):
@@ -430,7 +425,7 @@ class Refresher(dict):
         message={}
         message['command'] = 'refresh'
 
-        resp = send_message(message)
+        send_message(message)
 
 class Remover(dict):
     """
@@ -468,7 +463,8 @@ class Remover(dict):
 
         if resp['response']=='OK':
             if 'pids_to_kill' not in resp:
-                print "Internal error, server shuold return pids_to_kill."
+                print >>stderr,("Internal error, server shuold "
+                                "return pids_to_kill.")
                 sys.exit(1)
 
             # this is always a list, for when we do "wq rm all"
@@ -478,7 +474,9 @@ class Remover(dict):
                 os.kill(pidtokill,signal.SIGTERM)
                 time.sleep (0.1) ## sleep  a bit
                 cc=0
-                while (self._pid_exists(pidtokill) and (cc<100)): #see when it disappears, up to 10sec
+
+                #see when it disappears, up to 10sec
+                while (self._pid_exists(pidtokill) and (cc<100)):
                     time.sleep(0.1)
                     cc+=1
                 if (self._pid_exists(pidtokill)):
@@ -492,7 +490,7 @@ class Remover(dict):
             resp = send_message(message)
 
         else:
-            print "Cannot remove, reason=", resp['error']
+            print >>stderr,"Cannot remove, reason=", resp['error']
 
     def _pid_exists(self, pid):        
         """ Check For the existence of a unix pid. """
@@ -555,9 +553,12 @@ class Submitter(dict):
 
     def _process_args(self, args):
         parser=OptionParser(Submitter.__doc__)
-        parser.add_option("-r", "--require", default=None, help="optional requirements for job")
-        parser.add_option("-b", "--batch", action='store_true', help="Submit jobs in batch mode.")
-        parser.add_option("-c", "--command", default=None, help="The command to run as a string")
+        parser.add_option("-r", "--require", 
+                          default=None, help="optional requirements for job")
+        parser.add_option("-b", "--batch", action='store_true', 
+                          help="Submit jobs in batch mode.")
+        parser.add_option("-c", "--command", default=None, 
+                          help="The command to run as a string")
 
         options, args = parser.parse_args(args)
 
@@ -611,8 +612,8 @@ class Submitter(dict):
         no requirements
         """
 
-        print 'submitting',job_file
-        port = str(pars['port'])
+        print >>stderr,'submitting',job_file
+        port = str(PARS['port'])
 
         req=''
         if self['require_opt'] is not None:
@@ -654,14 +655,6 @@ class Submitter(dict):
 
         return reqs
 
-    def print_job_info(self):
-        print '------------'
-        print 'Job info:\n'
-        print 'command line:',self['commandline']
-        for k in self['require']:
-            print '%s: %s' % (k,self['require'][k])
-        print '------------'
-
     def receive_signal(self,a,b):
         pass
 
@@ -673,7 +666,6 @@ class Submitter(dict):
 
         self.message['command']='notify'
         self.message['notification']='done'
-        #sres = send_message(self.message, timeout=SOCK_TIMEOUT, crash_on_timeout=True)
         sres = send_message(self.message)
         self.print_res(sres)
         exit(0)
@@ -735,16 +727,14 @@ class Submitter(dict):
 
         if sres['response'] == 'wait':
             # wait until we can go
-            print "waiting:",sres['reason']
-            #signal.signal(signal.SIGUSR1, self.receive_signal)
+            print >>stderr,"waiting:",sres['reason']
             fname = sres['spool_fname']
             wsleep = sres['spool_wait']
             while True:
                 time.sleep(wsleep)
                 try:
-                    #print "trying:",fname
                     open(fname)
-                    print "ok"
+                    print >>stderr,"ok"
                     break
                 except IOError:
                     pass
@@ -768,7 +758,8 @@ class Submitter(dict):
         command=self['commandline']
 
         ## here we execute
-        print "executing on host: %s with pid: %s" % (target,message['pid'])
+        print >>stderr,("executing on host: %s with "
+                        "pid: %s" % (target,message['pid']))
         signal.signal(signal.SIGTERM, self.receive_kill)
 
         cmdlist = self.make_command_list(target,command,self['require'])
@@ -776,13 +767,12 @@ class Submitter(dict):
         self.remoteprocess.wait()
 
         ### now we notify done.
-        print "done"
+        print >>stderr,"done"
         message['command']='notify'
         message['notification']='done'
 
         # we want to die if the notification fails so the server will see
         # the missing pid
-        #sres = send_message(self.message, timeout=SOCK_TIMEOUT, crash_on_timeout=True)
         sres = send_message(self.message)
         self.print_res(sres)
 
@@ -791,7 +781,7 @@ class Submitter(dict):
         for k in res:
             kk = k+': '
             pf = pprint.pformat(res[k])
-            print '%-15s %s' % (kk,pf)
+            print >>stderr,'%-15s %s' % (kk,pf)
 
 def socket_connect(sock, conninfo, crash_on_timeout=False):
     # crash will only happen if timeouts have been enabled, otherwise we just
@@ -806,20 +796,6 @@ def socket_connect(sock, conninfo, crash_on_timeout=False):
             except socket.timeout:
                 pass
 
-def socket_send(sock, mess):
-    """
-    Need to do this with timeouts, which are non-blocking under the hood
-
-    hmm... is this going to max the cpu if we can't get through right away?
-    """
-    reslen=len(mess)
-    tnsent=conn.send(mess)
-    nsent = tnsent
-    while nsent < reslen:
-        tnsent=conn.send(mess[nsent:])
-        nsent += tnsent
-
-
 def send_message(message, timeout=None, crash_on_timeout=False):
     if len(message) == 0:
         raise ValueError("message must have len > 0")
@@ -829,7 +805,7 @@ def send_message(message, timeout=None, crash_on_timeout=False):
     if timeout is not None:
         sock.settimeout(timeout)
 
-    conninfo = (pars['host'], pars['port'])
+    conninfo = (PARS['host'], PARS['port'])
     socket_connect(sock, conninfo, crash_on_timeout=crash_on_timeout)
 
     rdict=None
@@ -837,26 +813,27 @@ def send_message(message, timeout=None, crash_on_timeout=False):
         jmess=yaml.dump(message)
 
         wq.server.socket_send(sock, jmess)
-        data = wq.server.socket_recieve(sock, pars['max_buffsize'])
+        data = wq.server.socket_recieve(sock, PARS['max_buffsize'])
 
         sock.close()
 
         try:
             rdict = yaml.load(data)
         except:
-            print 'YAML err:'
-            print data
+            print >>stderr,'YAML err:'
+            print >>stderr,data
             sys.exit(1)
 
         if 'error' in rdict:
             raise RuntimeError("Error reported by server: %s" % rdict['error'])
 
         if 'response' not in rdict:
-            raise RuntimeError("Internal error. Expected a response and got screwed.")
+            raise RuntimeError("Internal error. Expected a response "
+                               "and got screwed.")
 
     except:
         es=sys.exc_info()
-        print 'caught exception type:', es[0],'details:',es[1]
+        print >>stderr,'caught exception type:', es[0],'details:',es[1]
         rdict=None
     finally:
         sock.close()
@@ -885,7 +862,7 @@ def get_command_obj(args, **keys):
     elif args[0] == 'serve':
         return ServerWrapper(args[1:], **keys)
     elif args[0] == 'node':
-	return NodeCommand(args[1:])
+        return NodeCommand(args[1:])
     else:
         return None
 
@@ -911,9 +888,9 @@ def preprocess_args(args, parser):
         try:
             # update our global var here. The client and
             # server would both use this
-            pars['port'] = int(args[ind+1])
+            PARS['port'] = int(args[ind+1])
         except:
-            print 'Could not get port from input: %s' % args
+            print >>stderr,'Could not get port from input: %s' % args
             sys.exit(1)
         del args[ind:ind+2]
     except:
@@ -948,10 +925,11 @@ def main():
         # to head or something
         es=sys.exc_info()
         if 'Broken pipe' not in es[1]:
-            sys.stderr.write('caught exception type: %s  details: %s\n' % (es[0],es[1]))
+            sys.stderr.write('caught exception type: %s  '
+                             'details: %s\n' % (es[0],es[1]))
             raise
     except:
-        print "Unexpected error:", sys.exc_info()[0]
+        print >>stderr,"Unexpected error:", sys.exc_info()[0]
         raise
     finally:
         # this helps with pipes, needed in addition to above catch of IOError
