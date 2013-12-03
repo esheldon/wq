@@ -681,7 +681,8 @@ class Submitter(dict):
         full_command+='cd '+pwd+'; '+command
 
         ## replace %hostfile% with actual hostfile
-        full_command=full_command.replace('%hostfile%',self.hostfile)
+        if self.hostfile:
+            full_command=full_command.replace('%hostfile%',self.hostfile)
         if 'threads' in self['require']:
             full_command=full_command.replace('%threads%',str(self['require']['threads']))
 

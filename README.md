@@ -157,7 +157,8 @@ is the full list
  * high - high priority
  * block - block other jobs until this one can run.
 * job_name - A name to display in job listings. Usually the command, or an abbreviated form of the command, is shown.
-* hostfile - An optional file in which to save allocated node names. Useful for MPI jobs using mpirun.
+* hostfile - An optional file in which to save allocated node names. Useful for MPI jobs using mpirun. If hostfile equals to 'auto' a name will be generated automatically and put in place of %hostfile% in command line
+* threads - An optional argument that controls hosts listed in hostfile for running hybrid jobs. See example below.
 
 
 Here is a full, commented example
@@ -168,7 +169,7 @@ Here is a full, commented example
 
     command: |
         source ~/.bashrc
-        mpirun -hostfile hfile ./program
+        OMP_NUM_THREADS=%threads% mpirun -hostfile %hostfile% ./program
 
     # show this name in job listings instead of the command
     job_name: dostuff35 
@@ -179,7 +180,7 @@ Here is a full, commented example
 
     # Since the mode is bynode, this means 5 full nodes
     N: 5
-
+    
     # Select from this group(s)
     group: new
 
@@ -190,14 +191,21 @@ Here is a full, commented example
     min_cores: 8
 
     # used by MPI jobs
-    hostfile: hfile
+    hostfile: auto
+
+    # If we have 5 full nodes of 12 cores each,
+    # there is 60 cores in total. Threads:4 ensures each
+    # host is listed 3 times. So the command above will
+    # run 15 MPI nodes of 4 threads each
+
+    threads: 4
 
 ### running an MPI code
 
 
 To run an MPI code, get hostnames through the hostfile requirement, e.g.
 
-    wq -r "N:16;hostfile:hfile" -c "mpirun -hostfile hfile ./mycode"
+    wq -r "N:16;hostfile:auto" -c "mpirun -hostfile %hostfile% ./mycode"
 
 
 
