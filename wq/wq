@@ -673,7 +673,11 @@ class Submitter(dict):
     def make_command_list(self, target_machine, command, require):
         # full command, we first change directory to CWD
         pwd =os.getcwd()
-        full_command='cd '+pwd+'; '+command
+        if self.rcfile.has_key('precmd'):
+            full_command=self.rcfile['precmd']
+        else:
+            fullcommand=""
+        full_command+=' ; cd '+pwd+'; '+command
 
         if target_machine=='localhost':
             shell=os.environ['SHELL']
@@ -912,6 +916,14 @@ def main():
     args, keys = preprocess_args(sys.argv[1:], parser)
 
     cmd_obj = get_command_obj(args, **keys)
+    ## read the rc file
+    try:
+        rcfile=yaml.load(open(os.environ['HOME']+'/.wqrc'))
+    except:
+        rcfile={}
+
+    cmd_obj.rcfile=rcfile
+
     if cmd_obj is None:
         parser.print_help()
         sys.exit(1)
