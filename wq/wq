@@ -675,14 +675,15 @@ class Submitter(dict):
         # full command, we first change directory to CWD
         pwd =os.getcwd()
         if self.rcfile.has_key('precmd'):
-            full_command=self.rcfile['precmd']
+            full_command=self.rcfile['precmd']+" ; "
         else:
-            fullcommand=""
-        full_command+=' ; cd '+pwd+'; '+command
+            full_command=""
+        full_command+='cd '+pwd+'; '+command
 
         ## replace %hostfile% with actual hostfile
         full_command=full_command.replace('%hostfile%',self.hostfile)
-        print full_command
+        if 'threads' in self['require']:
+            full_command=full_command.replace('%threads%',str(self['require']['threads']))
 
         if target_machine=='localhost':
             shell=os.environ['SHELL']
@@ -707,8 +708,31 @@ class Submitter(dict):
             cmdlist.append(target_machine)
             cmdlist.append(full_command)
 
-        print cmdlist
         return cmdlist
+
+    def prepare_hostlist(self, hostlist):
+        if 'threads' in self['require']:
+            th=self['require']['threads']
+            if th<=0:
+                print "Weird value for threads. Ignoring."
+            elif th>1:
+                dct={}
+                for h in hostlist:
+                    if dct.has_key(h):
+                        dct[h]+=1
+                    else:
+                        dct[h]=1
+                nhostlist=[]
+                for h in dct:
+                    n=dct[h]
+                    if (n%th!=0):
+                        print "Host",h,"has",n%th,"dangling cores. Ignoring."
+                    for i in range(n/th):
+                        nhostlist.append(h)
+                hostlist=nhostlist
+                        
+        return hostlist
+
 
     def execute(self):
         """
@@ -764,7 +788,7 @@ class Submitter(dict):
             else:
                 self.hostfile=self['require']['hostfile']
             f=open(self.hostfile,'w')
-            for h in hosts:
+            for h in self.prepare_hostlist(hosts):
                 f.write(h+'\n')
             f.close()
         else:
@@ -784,7 +808,7 @@ class Submitter(dict):
         self.remoteprocess.wait()
 
         ### now we notify done.
-        print >>stderr,"done"
+        #print >>stderr,"Done."
         message['command']='notify'
         message['notification']='done'
         ## Try to remove hostfile
@@ -796,7 +820,9 @@ class Submitter(dict):
         # we want to die if the notification fails so the server will see
         # the missing pid
         sres = send_message(self.message)
-        self.print_res(sres)
+        if sres['response']!='OK':
+            print "Bad response from server:"
+            self.print_res(sres)
 
     def print_res(self, res):
         import pprint
@@ -937,7 +963,7 @@ def main():
     ## read the rc file
     try:
         rcfile=yaml.load(open(os.environ['HOME']+'/.wqrc'))
-    except:
+    except IOError:
         rcfile={}
 
     cmd_obj.rcfile=rcfile
