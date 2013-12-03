@@ -35,6 +35,7 @@ import signal
 import wq
 import time
 import subprocess
+import uuid
 
 from optparse import OptionParser
 
@@ -679,6 +680,10 @@ class Submitter(dict):
             fullcommand=""
         full_command+=' ; cd '+pwd+'; '+command
 
+        ## replace %hostfile% with actual hostfile
+        full_command=full_command.replace('%hostfile%',self.hostfile)
+        print full_command
+
         if target_machine=='localhost':
             shell=os.environ['SHELL']
             cmdlist = [shell,'-c',command]
@@ -702,6 +707,7 @@ class Submitter(dict):
             cmdlist.append(target_machine)
             cmdlist.append(full_command)
 
+        print cmdlist
         return cmdlist
 
     def execute(self):
@@ -753,13 +759,20 @@ class Submitter(dict):
         ## if hostfile specified need to create one
         hosts=sres['hosts']
         if 'hostfile' in self['require']:
-            f=open(self['require']['hostfile'],'w')
+            if (self['require']['hostfile']=='auto'):
+                self.hostfile=str(uuid.uuid4())[:8]+'.hostfile'
+            else:
+                self.hostfile=self['require']['hostfile']
+            f=open(self.hostfile,'w')
             for h in hosts:
                 f.write(h+'\n')
             f.close()
+        else:
+            self.hostfile=None
 
         target=hosts[0]
         command=self['commandline']
+        print command
 
         ## here we execute
         print >>stderr,("executing on host: %s with "
@@ -774,7 +787,12 @@ class Submitter(dict):
         print >>stderr,"done"
         message['command']='notify'
         message['notification']='done'
-
+        ## Try to remove hostfile
+        if (self.hostfile):
+            try:
+                os.remove(self.hostfile) 
+            except:
+                pass
         # we want to die if the notification fails so the server will see
         # the missing pid
         sres = send_message(self.message)
