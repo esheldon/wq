@@ -35,6 +35,7 @@ import signal
 import wq
 import time
 import subprocess
+import uuid
 
 from optparse import OptionParser
 
@@ -673,7 +674,17 @@ class Submitter(dict):
     def make_command_list(self, target_machine, command, require):
         # full command, we first change directory to CWD
         pwd =os.getcwd()
-        full_command='cd '+pwd+'; '+command
+        if self.rcfile.has_key('precmd'):
+            full_command=self.rcfile['precmd']+" ; "
+        else:
+            full_command=""
+        full_command+='cd '+pwd+'; '+command
+
+        ## replace %hostfile% with actual hostfile
+        if self.hostfile:
+            full_command=full_command.replace('%hostfile%',self.hostfile)
+        if 'threads' in self['require']:
+            full_command=full_command.replace('%threads%',str(self['require']['threads']))
 
         if target_machine=='localhost':
             shell=os.environ['SHELL']
@@ -699,6 +710,30 @@ class Submitter(dict):
             cmdlist.append(full_command)
 
         return cmdlist
+
+    def prepare_hostlist(self, hostlist):
+        if 'threads' in self['require']:
+            th=self['require']['threads']
+            if th<=0:
+                print "Weird value for threads. Ignoring."
+            elif th>1:
+                dct={}
+                for h in hostlist:
+                    if dct.has_key(h):
+                        dct[h]+=1
+                    else:
+                        dct[h]=1
+                nhostlist=[]
+                for h in dct:
+                    n=dct[h]
+                    if (n%th!=0):
+                        print "Host",h,"has",n%th,"dangling cores. Ignoring."
+                    for i in range(n/th):
+                        nhostlist.append(h)
+                hostlist=nhostlist
+                        
+        return hostlist
+
 
     def execute(self):
         """
@@ -749,13 +784,20 @@ class Submitter(dict):
         ## if hostfile specified need to create one
         hosts=sres['hosts']
         if 'hostfile' in self['require']:
-            f=open(self['require']['hostfile'],'w')
-            for h in hosts:
+            if (self['require']['hostfile']=='auto'):
+                self.hostfile=str(uuid.uuid4())[:8]+'.hostfile'
+            else:
+                self.hostfile=self['require']['hostfile']
+            f=open(self.hostfile,'w')
+            for h in self.prepare_hostlist(hosts):
                 f.write(h+'\n')
             f.close()
+        else:
+            self.hostfile=None
 
         target=hosts[0]
         command=self['commandline']
+        print command
 
         ## here we execute
         print >>stderr,("executing on host: %s with "
@@ -767,14 +809,21 @@ class Submitter(dict):
         self.remoteprocess.wait()
 
         ### now we notify done.
-        print >>stderr,"done"
+        #print >>stderr,"Done."
         message['command']='notify'
         message['notification']='done'
-
+        ## Try to remove hostfile
+        if (self.hostfile):
+            try:
+                os.remove(self.hostfile) 
+            except:
+                pass
         # we want to die if the notification fails so the server will see
         # the missing pid
         sres = send_message(self.message)
-        self.print_res(sres)
+        if sres['response']!='OK':
+            print "Bad response from server:"
+            self.print_res(sres)
 
     def print_res(self, res):
         import pprint
@@ -912,6 +961,14 @@ def main():
     args, keys = preprocess_args(sys.argv[1:], parser)
 
     cmd_obj = get_command_obj(args, **keys)
+    ## read the rc file
+    try:
+        rcfile=yaml.load(open(os.environ['HOME']+'/.wqrc'))
+    except IOError:
+        rcfile={}
+
+    cmd_obj.rcfile=rcfile
+
     if cmd_obj is None:
         parser.print_help()
         sys.exit(1)
