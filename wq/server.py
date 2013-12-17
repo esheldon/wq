@@ -585,6 +585,18 @@ class Job(dict):
         N,reason=_get_dict_int(reqs, 'N', 1)
         if reason:
             return pmatch, match, hosts, reason
+
+        threads,reason = _get_dict_int(reqs, 'threads', 1)
+        if reason:
+            return pmatch, match, hosts, reason
+
+        if (threads<1):
+            threads=1
+
+        if (N%threads>0):
+            reason = 'Number of requested cores not divisible by threads'
+            return pmatch, match, hosts, reason
+        print "threads,N",threads,N
         Np=N
 
         min_mem, reason = _get_dict_float(reqs,'min_mem',0.0)
@@ -619,13 +631,18 @@ class Job(dict):
                         break
                 if (not ok):
                     continue ### not in the group
+                
+            # usable cores must be multiple of
+            # number of threads requested
+            pucores = (nd.ncores/threads)*threads
 
-            if (nd.ncores>=Np):
+            if (pucores>=Np):
                 pmatch=True
             else:
-                Np-=nd.ncores
+                Np-=pucores
 
             nfree= nd.ncores-nd.used
+            nfree = (nfree/threads)*threads
 
             if len(bgroups) > 0: ##any group in any group
                 ok=True
@@ -1471,8 +1488,9 @@ def print_stat(status):
         perc=100.*status['used']/tot_active_cores
     else: perc=00.00
     print
-    mess=' Used cores: %i/%i (%3.1f%%) (%i are offline)'
+    mess=' Used/avail/active cores: %i/%i/%i (%3.1f%% load, %i are offline)'
     mess=mess % (status['used'],
+                 tot_active_cores-status['used'],
                  tot_active_cores,
                  perc,
                  status['ncores']-tot_active_cores)
