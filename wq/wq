@@ -518,6 +518,9 @@ def _process_singleline_yaml(data):
     
     yaml_data = yaml.load(r)
 
+    if not isinstance(yaml_data,dict):
+        raise TypeError("could not parse input as yaml: '%s'" % data)
+
     return yaml_data
 
 
@@ -631,6 +634,10 @@ class Submitter(dict):
     def _process_job_file(self, fname):
 
         reqs = yaml.load(open(fname))
+
+        if not isinstance(reqs,dict):
+            raise TypeError("could not parse job file as yaml: '%s'" % fname)
+
         if 'command' not in reqs:
             raise ValueError("no command found in job file")
         commandline = reqs['command']
@@ -653,6 +660,9 @@ class Submitter(dict):
         r = r.replace(':',': ')
         
         reqs = yaml.load(r)
+
+        if not isinstance(reqs,dict):
+            raise TypeError("could not parse requirements as yaml: '%s'" % r)
 
         return reqs
 
