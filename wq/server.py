@@ -154,7 +154,7 @@ class Server:
                         except TypeError as e:
                             # this happens extremely rarely, haven't tracked it down yet
                             # usually it is "'str' object does not support item assignment"
-                            print 'caught TypeError, ignoring'
+                            print 'warning: catching and ignoring TypeError:',str(e)
                         finally:
                             # whatever happens we can't talk to this client any
                             # more
