@@ -151,6 +151,10 @@ class Server:
                                 print 'caught exception type:',es[0],
                                 print 'details:',es[1]
                                 print 'ignoring'
+                        except TypeError as e:
+                            # this happens extremely rarely, haven't tracked it down yet
+                            # usually it is "'str' object does not support item assignment"
+                            print 'caught TypeError, ignoring'
                         finally:
                             # whatever happens we can't talk to this client any
                             # more
