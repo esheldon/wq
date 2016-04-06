@@ -33,6 +33,8 @@ DEFAULT_SPOOL_DIR = "~/wqspool/"
 #PRIORITY_LIST= ['block','low','med','high']
 PRIORITY_LIST= ['block','high','med','low']
 
+# how many seconds to wait before restart
+RESTART_DELAY = 60
 
 def socket_send(conn, mess):
     """
@@ -85,21 +87,32 @@ class Server:
         self.sock.listen(4)
 
     def run(self):
-        self.open_socket()
-        try:
-            self._run()
-        except KeyboardInterrupt:
-            pass
-        except:
-            es=sys.exc_info()
-            print 'caught exception type:', es[0],'details:',es[1]
-        finally:
-            self.queue.save_users()
-            print 'shutdown'
-            self.sock.shutdown(socket.SHUT_RDWR)
-            print 'close'
-            self.sock.close()
 
+        do_restart=True
+
+        while True:
+            self.open_socket()
+            try:
+                self._run()
+            except KeyboardInterrupt:
+                do_restart=False
+            except:
+                es=sys.exc_info()
+                print 'caught exception type:', es[0],'details:',es[1]
+                print 'restarting'
+            finally:
+                self.queue.save_users()
+                print 'shutdown'
+                self.sock.shutdown(socket.SHUT_RDWR)
+                print 'close'
+                self.sock.close()
+
+            if not do_restart:
+                print "    keyboard interrupt: exiting"
+                break
+            else:
+                print "    restarting after 1 minute wait"
+                time.sleep(RESTART_DELAY)
 
     def _run(self):
         """
