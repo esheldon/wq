@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-#7_10_12 copy
 """
     %prog [options] command [command options]
 
@@ -25,6 +24,7 @@ is processed, are
 e.g.
     wq -p port sub ...
 """
+from __future__ import print_function
 
 import socket
 import sys
@@ -132,7 +132,7 @@ class JobLister(dict):
             else:
                 show = resp['response']
             if len(show) > 0:
-                print yaml.dump(show)
+                print( yaml.dump(show) )
 
             return
 
@@ -193,20 +193,20 @@ class JobLister(dict):
 
         # this is the header for each column
         if len(lines) > 0:
-            print fmt % {'pid':'Pid','user':'User',
+            print( fmt % {'pid':'Pid','user':'User',
                          'st':'St', 'pri':'Pri', 'nc':'Nc',
                          'nh':'Nh','host0':'Host0',
-                         'cmd':'Cmd','Tq':'Tq','Trun':'Trun'}
+                         'cmd':'Cmd','Tq':'Tq','Trun':'Trun'} )
 
         for l in sorted(lines, key=lambda x: x['time_sub']):
-            print fmt % l
+            print( fmt % l )
 
         njobs = nrun+nwait
         stats = 'Jobs: %s Running: %s Waiting: %s' % (njobs,nrun,nwait)
         if self.user is not None:
-            print ' User: %s %s' % (','.join(self.user),stats)
+            print( ' User: %s %s' % (','.join(self.user),stats) )
         else:
-            print ' %s' % stats
+            print( ' %s' % stats )
                 
     def _get_ncores(self, r):
         if r['status'] == 'run':
@@ -377,7 +377,7 @@ class Limiter(dict):
 
         resp = send_message(message)
 
-        print >>stderr,resp['response']
+        print(resp['response'], file=stderr)
 
 class NodeCommand(dict):
     """
@@ -396,11 +396,6 @@ class NodeCommand(dict):
         self.node = args[0]
         self.yamline = _process_singleline_yaml(args[1])
 
-        #if(not self.yamline.has_key('status')):
-        #    #Throw Error Here
-        #    print "Error: Did you mean 'status'?"
-        #    sys.exit(1)
-
     def execute(self):
         message={}
         message['command'] = 'node'
@@ -408,7 +403,7 @@ class NodeCommand(dict):
         message['node'] = self.node
         message['yamline'] = self.yamline
         resp = send_message(message) 
-        print >>stderr,resp['response']
+        print(resp['response'], file=stderr)
 	
 
 class Refresher(dict):
@@ -464,8 +459,8 @@ class Remover(dict):
 
         if resp['response']=='OK':
             if 'pids_to_kill' not in resp:
-                print >>stderr,("Internal error, server shuold "
-                                "return pids_to_kill.")
+                print("Internal error, server shuold "
+                      "return pids_to_kill.", file=stderr)
                 sys.exit(1)
 
             # this is always a list, for when we do "wq rm all"
@@ -491,7 +486,7 @@ class Remover(dict):
             resp = send_message(message)
 
         else:
-            print >>stderr,"Cannot remove, reason=", resp['error']
+            print( "Cannot remove, reason=", resp['error'], file=stderr )
 
     def _pid_exists(self, pid):        
         """ Check For the existence of a unix pid. """
@@ -616,7 +611,7 @@ class Submitter(dict):
         no requirements
         """
 
-        print >>stderr,'submitting',job_file
+        print('submitting',job_file, file=stderr)
         port = str(PARS['port'])
 
         req=''
@@ -684,7 +679,7 @@ class Submitter(dict):
     def make_command_list(self, target_machine, command, require):
         # full command, we first change directory to CWD
         pwd =os.getcwd()
-        if self.rcfile.has_key('precmd'):
+        if 'precmd' in self.rcfile:
             full_command=self.rcfile['precmd']+" ; "
         else:
             full_command=""
@@ -725,7 +720,7 @@ class Submitter(dict):
         if 'threads' in self['require']:
             th=self['require']['threads']
             if th<=0:
-                print "Weird value for threads. Ignoring."
+                print( "Weird value for threads. Ignoring." )
             elif th>1:
                 dct={}
                 for h in hostlist:
@@ -737,7 +732,7 @@ class Submitter(dict):
                 for h in dct:
                     n=dct[h]
                     if (n%th!=0):
-                        print "Host",h,"has",n%th,"dangling cores. Ignoring."
+                        print( "Host",h,"has",n%th,"dangling cores. Ignoring." )
                     for i in range(n/th):
                         nhostlist.append(h)
                 hostlist=nhostlist
@@ -772,14 +767,14 @@ class Submitter(dict):
 
         if sres['response'] == 'wait':
             # wait until we can go
-            print >>stderr,"waiting:",sres['reason']
+            print("waiting:",sres['reason'], file=stderr)
             fname = sres['spool_fname']
             wsleep = sres['spool_wait']
             while True:
                 time.sleep(wsleep)
                 try:
                     open(fname)
-                    print >>stderr,"ok"
+                    print("ok", file=stderr)
                     break
                 except IOError:
                     pass
@@ -807,11 +802,10 @@ class Submitter(dict):
 
         target=hosts[0]
         command=self['commandline']
-        print command
+        print( command )
 
         ## here we execute
-        print >>stderr,("executing on host: %s with "
-                        "pid: %s" % (target,message['pid']))
+        print("executing on host: %s with " "pid: %s" % (target,message['pid']), file=stderr)
         signal.signal(signal.SIGTERM, self.receive_kill)
 
         cmdlist = self.make_command_list(target,command,self['require'])
@@ -819,7 +813,6 @@ class Submitter(dict):
         self.remoteprocess.wait()
 
         ### now we notify done.
-        #print >>stderr,"Done."
         message['command']='notify'
         message['notification']='done'
         ## Try to remove hostfile
@@ -832,7 +825,7 @@ class Submitter(dict):
         # the missing pid
         sres = send_message(self.message)
         if sres['response']!='OK':
-            print "Bad response from server:"
+            print( "Bad response from server:" )
             self.print_res(sres)
 
     def print_res(self, res):
@@ -840,7 +833,7 @@ class Submitter(dict):
         for k in res:
             kk = k+': '
             pf = pprint.pformat(res[k])
-            print >>stderr,'%-15s %s' % (kk,pf)
+            print('%-15s %s' % (kk,pf), file=stderr)
 
 def socket_connect(sock, conninfo, crash_on_timeout=False):
     # crash will only happen if timeouts have been enabled, otherwise we just
@@ -855,7 +848,9 @@ def socket_connect(sock, conninfo, crash_on_timeout=False):
             except socket.timeout:
                 pass
 
+
 def send_message(message, timeout=None, crash_on_timeout=False):
+
     if len(message) == 0:
         raise ValueError("message must have len > 0")
 
@@ -879,8 +874,8 @@ def send_message(message, timeout=None, crash_on_timeout=False):
         try:
             rdict = yaml.load(data)
         except:
-            print >>stderr,'YAML err:'
-            print >>stderr,data
+            print('YAML err:', file=stderr)
+            print(data, file=stderr)
             sys.exit(1)
 
         if 'error' in rdict:
@@ -890,10 +885,10 @@ def send_message(message, timeout=None, crash_on_timeout=False):
             raise RuntimeError("Internal error. Expected a response "
                                "and got screwed.")
 
-    except:
-        es=sys.exc_info()
-        print >>stderr,'caught exception type:', es[0],'details:',es[1]
-        rdict=None
+    #except:
+    #    es=sys.exc_info()
+    #    print('caught exception type:', es[0],'details:',es[1], file=stderr)
+    #    rdict=None
     finally:
         sock.close()
 
@@ -949,7 +944,7 @@ def preprocess_args(args, parser):
             # server would both use this
             PARS['port'] = int(args[ind+1])
         except:
-            print >>stderr,'Could not get port from input: %s' % args
+            print('Could not get port from input: %s' % args, file=stderr)
             sys.exit(1)
         del args[ind:ind+2]
     except:
@@ -989,16 +984,15 @@ def main():
         cmd_obj.execute()
     except KeyboardInterrupt:
         pass
-    except IOError, e:
+    except IOError as e:
         # this is most certainly a "broken pipe" type error when someone pipes
         # to head or something
         es=sys.exc_info()
-        if 'Broken pipe' not in es[1]:
-            sys.stderr.write('caught exception type: %s  '
-                             'details: %s\n' % (es[0],es[1]))
+        if 'Broken pipe' not in str(es[1]):
+            print('caught exception type: %s  details: %s\n' % (es[0],es[1]))
             raise
     except:
-        print >>stderr,"Unexpected error:", sys.exc_info()[0]
+        print("Unexpected error:", sys.exc_info()[0], file=stderr)
         raise
     finally:
         # this helps with pipes, needed in addition to above catch of IOError
