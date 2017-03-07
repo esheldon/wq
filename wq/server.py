@@ -1352,15 +1352,25 @@ class JobQueue:
 
         limits = message.get('limits',{}) 
         if not limits:
-            self.response['error'] = 'Expected some limits to be sent'
+            #self.response['error'] = 'Expected some limits to be sent'
+            return
+
+        action=limits.pop('action','set')
+        if action not in ['clear','set']:
+            self.response['error'] = "action should be 'clear'or 'set'"
             return
 
         if self.verbosity > 1:
             print( 'limits sent:',limits )
+
         # we have a reference here, might want to hide this
         udata = self.users.get(user)
-        for l,v in limits.items():
-            udata['limits'][l] = v
+
+        if action=='clear':
+            udata['limits'].clear()
+        else:
+            for l,v in limits.items():
+                udata['limits'][l] = v
 
         self.save_users()
         self.response['response'] = 'OK'

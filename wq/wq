@@ -349,6 +349,7 @@ class UsersLister(dict):
 
         wq.server.print_users(users)
 
+_LIMIT_VALID_KEYS=['Njobs','Ncores']
 class Limiter(dict):
     """
     usage: wq limit "key1:val1; key2:val2; ..."
@@ -367,7 +368,16 @@ class Limiter(dict):
             parser.print_help()
             sys.exit(1)
 
-        self.limits = _process_singleline_yaml(args[0])
+        if args[0] == 'clear':
+            self.limits={'action':'clear'}
+        else:
+            self.limits = _process_singleline_yaml(args[0])
+            
+            for key in self.limits:
+                if key not in _LIMIT_VALID_KEYS:
+                    mess="limit should be one of %s, got: '%s'"
+                    raise ValueError(mess % (_LIMIT_VALID_KEYS,key))
+            self.limits['action'] = 'set'
 
     def execute(self):
         message={}
