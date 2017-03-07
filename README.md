@@ -234,9 +234,13 @@ You can also specify Ncores, or even combine them
     wq limit "Njobs: 25; Ncores: 100"
 
 These data are saved in a file on disk and reloaded when the server is
-restarted.  You can remove limits by setting them to -1, e.g.
+restarted.  You can remove a limit by setting it to -1, e.g.
 
-    wq limit "Njobs: -1; Ncores: -1"
+    wq limit "Njobs: -1"
+
+Remove all limits using the clear sub-command
+
+    wq limit clear
 
 Tips and Tricks
 ---------------
