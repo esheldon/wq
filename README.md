@@ -162,7 +162,7 @@ is the full list
 
 
 Here is a full, commented example
-
+```yaml
     # these are the commands to be run.  if you only have a 
     # single command, you can use a single line such as 
     # command: ./script
@@ -199,6 +199,7 @@ Here is a full, commented example
     # run 15 MPI nodes of 4 threads each
 
     threads: 4
+```
 
 ### running an MPI code
 
