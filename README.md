@@ -163,42 +163,42 @@ is the full list
 
 Here is a full, commented example
 ```yaml
-    # these are the commands to be run.  if you only have a 
-    # single command, you can use a single line such as 
-    # command: ./script
+# these are the commands to be run.  if you only have a 
+# single command, you can use a single line such as 
+# command: ./script
 
-    command: |
-        source ~/.bashrc
-        OMP_NUM_THREADS=%threads% mpirun -hostfile %hostfile% ./program
+command: |
+    source ~/.bashrc
+    OMP_NUM_THREADS=%threads% mpirun -hostfile %hostfile% ./program
 
-    # show this name in job listings instead of the command
-    job_name: dostuff35 
+# show this name in job listings instead of the command
+job_name: dostuff35 
 
-    # this is the type of node/host selection. bynode means select entire
-    # nodes.
-    mode: bynode
+# this is the type of node/host selection. bynode means select entire
+# nodes.
+mode: bynode
 
-    # Since the mode is bynode, this means 5 full nodes
-    N: 5
-    
-    # Select from this group(s)
-    group: new
+# Since the mode is bynode, this means 5 full nodes
+N: 5
 
-    # Do not select from this set of groups
-    notgroup: [slow,crappy]
+# Select from this group(s)
+group: new
 
-    # require at least this many cores
-    min_cores: 8
+# Do not select from this set of groups
+notgroup: [slow,crappy]
 
-    # used by MPI jobs
-    hostfile: auto
+# require at least this many cores
+min_cores: 8
 
-    # If we have 5 full nodes of 12 cores each,
-    # there is 60 cores in total. Threads:4 ensures each
-    # host is listed 3 times. So the command above will
-    # run 15 MPI nodes of 4 threads each
+# used by MPI jobs
+hostfile: auto
 
-    threads: 4
+# If we have 5 full nodes of 12 cores each,
+# there is 60 cores in total. Threads:4 ensures each
+# host is listed 3 times. So the command above will
+# run 15 MPI nodes of 4 threads each
+
+threads: 4
 ```
 
 ### running an MPI code
