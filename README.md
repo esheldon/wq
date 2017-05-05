@@ -296,7 +296,7 @@ status.
     wq stat
 
 For each node, the usage is displayed using an asterisk * for used cores and a
-dot . for unused cores.  for example [***....] means three used and 4 unused
+dot . for unused cores.  for example `[***....]` means three used and 4 unused
 cores.  Also displayed is the memory available in gigabytes and the groups for
 each host.
 
