@@ -48,7 +48,10 @@ def socket_send(conn, mess):
     hmm... is this going to max the cpu if we can't get through right away?
     """
 
-    mess=bytes(mess, 'utf-8')
+    try:
+        mess=bytes(mess, 'utf-8')
+    except:
+        mess=bytes(mess)
 
     reslen=len(mess)
     tnsent=conn.send(mess)
