@@ -383,10 +383,11 @@ class Users:
                 data = yaml.load(fobj)
 
             self.users={}
-            for user,udata in data.items():
-                u = self._new_user(user)
-                u['limits'] = udata['limits']
-                self.users[user] = u
+            if data is not None:
+                for user,udata in data.items():
+                    u = self._new_user(user)
+                    u['limits'] = udata['limits']
+                    self.users[user] = u
 
     def tofile(self, fname):
         """
