@@ -75,33 +75,47 @@ name of the yaml job file.
 The job files and requirements are all in YAML syntax
 <http://en.wikipedia.org/wiki/YAML>.  For example, this is a job file to run
 the command "dostuff" on a single core.
-
-    command: dostuff
-
+```yaml
+command: dostuff
+```
 Don't forget the space between the colon ":" and the value.  The command can
 actually be a full script.  Just put a **pipe symbol "|"** after command: and
 then **indent the lines**.  For example
-
-    command: |
-        source ~/.bashrc
-        cd ~/mydata
-        cat data.txt | awk '{print $3}' 1> list.txt 2> list.err
-
-You can also put requirements in the job file.  For example, to grab 3 cores
-and only use  nodes from groups gen1 and gen2, but not group slow
-
-    command: dostuff 1> dostuff.out 2> dostuff.err
-    N: 3
-    group: [gen1, gen3]
-    notgroup: slow
-
+```yaml
+command: |
+    source ~/.bashrc
+    cd ~/mydata
+    cat data.txt | awk '{print $3}' 1> list.txt 2> list.err
+```
+If you want to use more than one core, add the `N` specifier.
+```yaml
+command: dostuff
+N: 35
+group: [gen1, gen3]
+notgroup: slow
+```
+Note these 35 cores will not generally be from the same node!  To make sure
+you get only cores from the same node specify the mode to be `bycore1`
+```yaml
+command: dostuff
+N: 8
+mode: bycore1
+```
+You can put requirements in the job file.  For example, to grab 100 cores
+and only use nodes from groups gen1 and gen2, but not group slow
+```yaml
+command: dostuff 1> dostuff.out 2> dostuff.err
+N: 100
+group: [gen1, gen3]
+notgroup: slow
+```
 Note group/notgroup are special in that they can take either a scalar or a
 list. You can also specify lists using note-taking notation
-
-    group:
-        - gen1
-        - gen2
-
+```yaml
+group:
+    - gen1
+    - gen2
+```
 Don't forget the space between dash "-" and value. See the Requirements
 sub-section for a full list of requirements
 
