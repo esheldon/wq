@@ -162,43 +162,44 @@ is the full list
 
 
 Here is a full, commented example
+```yaml
+# these are the commands to be run.  if you only have a 
+# single command, you can use a single line such as 
+# command: ./script
 
-    # these are the commands to be run.  if you only have a 
-    # single command, you can use a single line such as 
-    # command: ./script
+command: |
+    source ~/.bashrc
+    OMP_NUM_THREADS=%threads% mpirun -hostfile %hostfile% ./program
 
-    command: |
-        source ~/.bashrc
-        OMP_NUM_THREADS=%threads% mpirun -hostfile %hostfile% ./program
+# show this name in job listings instead of the command
+job_name: dostuff35 
 
-    # show this name in job listings instead of the command
-    job_name: dostuff35 
+# this is the type of node/host selection. bynode means select entire
+# nodes.
+mode: bynode
 
-    # this is the type of node/host selection. bynode means select entire
-    # nodes.
-    mode: bynode
+# Since the mode is bynode, this means 5 full nodes
+N: 5
 
-    # Since the mode is bynode, this means 5 full nodes
-    N: 5
-    
-    # Select from this group(s)
-    group: new
+# Select from this group(s)
+group: new
 
-    # Do not select from this set of groups
-    notgroup: [slow,crappy]
+# Do not select from this set of groups
+notgroup: [slow,crappy]
 
-    # require at least this many cores
-    min_cores: 8
+# require at least this many cores
+min_cores: 8
 
-    # used by MPI jobs
-    hostfile: auto
+# used by MPI jobs
+hostfile: auto
 
-    # If we have 5 full nodes of 12 cores each,
-    # there is 60 cores in total. Threads:4 ensures each
-    # host is listed 3 times. So the command above will
-    # run 15 MPI nodes of 4 threads each
+# If we have 5 full nodes of 12 cores each,
+# there is 60 cores in total. Threads:4 ensures each
+# host is listed 3 times. So the command above will
+# run 15 MPI nodes of 4 threads each
 
-    threads: 4
+threads: 4
+```
 
 ### running an MPI code
 
@@ -234,9 +235,13 @@ You can also specify Ncores, or even combine them
     wq limit "Njobs: 25; Ncores: 100"
 
 These data are saved in a file on disk and reloaded when the server is
-restarted.  You can remove limits by setting them to -1, e.g.
+restarted.  You can remove a limit by setting it to -1, e.g.
 
-    wq limit "Njobs: -1; Ncores: -1"
+    wq limit "Njobs: -1"
+
+Remove all limits using the clear sub-command
+
+    wq limit clear
 
 Tips and Tricks
 ---------------
@@ -291,7 +296,7 @@ status.
     wq stat
 
 For each node, the usage is displayed using an asterisk * for used cores and a
-dot . for unused cores.  for example [***....] means three used and 4 unused
+dot . for unused cores.  for example `[***....]` means three used and 4 unused
 cores.  Also displayed is the memory available in gigabytes and the groups for
 each host.
 

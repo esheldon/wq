@@ -7,6 +7,7 @@ The description file is
 
 The groups are optional comma separated list.
 """
+from __future__ import print_function
 
 import socket
 import yaml
@@ -15,7 +16,11 @@ import copy
 import sys
 import os
 import glob
-import cPickle
+
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 import datetime
 
@@ -42,6 +47,9 @@ def socket_send(conn, mess):
 
     hmm... is this going to max the cpu if we can't get through right away?
     """
+
+    mess=bytes(mess, 'utf-8')
+
     reslen=len(mess)
     tnsent=conn.send(mess)
     nsent = tnsent
@@ -96,22 +104,22 @@ class Server:
                 self._run()
             except KeyboardInterrupt:
                 do_restart=False
-            except:
-                es=sys.exc_info()
-                print 'caught exception type:', es[0],'details:',es[1]
-                print 'restarting'
+            #except:
+            #    es=sys.exc_info()
+            #    print('caught exception type:', es[0],'details:',es[1])
+            #    print('restarting')
             finally:
                 self.queue.save_users()
-                print 'shutdown'
+                print('shutdown')
                 self.sock.shutdown(socket.SHUT_RDWR)
-                print 'close'
+                print('close')
                 self.sock.close()
 
             if not do_restart:
-                print "    keyboard interrupt: exiting"
+                print("    keyboard interrupt: exiting")
                 break
             else:
-                print "    restarting after 1 minute wait"
+                print("    restarting after 1 minute wait")
                 time.sleep(RESTART_DELAY)
 
     def _run(self):
@@ -147,7 +155,7 @@ class Server:
                     if sock == server:
                         # the server socket got a client request
                         client, addr = server.accept()
-                        print str(datetime.datetime.now()),'Connected by', addr
+                        print(  str(datetime.datetime.now()),'Connected by', addr )
                         # it goes in the queue
                         input.append(client) 
                     else:
@@ -157,29 +165,29 @@ class Server:
                             self.process_client_request(client)
                             client.shutdown(socket.SHUT_RDWR)
                             client.close()
-                        except socket.error, e:
+                        except socket.error as e:
                             es=sys.exc_info()
                             if ('Broken pipe' in es[1] 
                                     or 'Transport endpoint' in es[1]):
-                                print 'caught exception type:',es[0],
-                                print 'details:',es[1]
-                                print 'ignoring'
-                        except TypeError as e:
-                            # this happens extremely rarely, haven't tracked it down yet
-                            # usually it is "'str' object does not support item assignment"
-                            print 'warning: catching and ignoring TypeError:',str(e)
+                                print( 'caught exception type:',es[0], )
+                                print( 'details:',es[1] )
+                                print( 'ignoring' )
+                        #except TypeError as e:
+                        #    # this happens extremely rarely, haven't tracked it down yet
+                        #    # usually it is "'str' object does not support item assignment"
+                        #    print( 'warning: catching and ignoring TypeError:',str(e) )
                         finally:
                             # whatever happens we can't talk to this client any
                             # more
                             input.remove(client) 
 
-            except socket.error, e:
+            except socket.error as e:
                 es=sys.exc_info()
                 if 'Broken pipe' in es[1]:
                     # this happens sometimes when someone ctrl-c in the middle
                     # of talking with the server
-                    print 'caught exception type:', es[0],'details:',es[1]
-                    print 'ignoring Broken pipe exception'
+                    print( 'caught exception type:', es[0],'details:',es[1] )
+                    print( 'ignoring Broken pipe exception' )
                 else:
                     raise e
 
@@ -193,9 +201,9 @@ class Server:
         if not data:
             return
 
-        print str(datetime.datetime.now()),'processing client request'
+        print( str(datetime.datetime.now()),'processing client request' )
         if self.verbosity > 1:
-            print data
+            print( data )
         try:
             message = yaml.load(data)
         except:
@@ -215,7 +223,7 @@ class Server:
             yaml_response = yaml.dump(err)
 
         if self.verbosity > 2:
-            print 'response:',yaml_response
+            print( 'response:',yaml_response )
         socket_send(client, yaml_response)
 
 
@@ -227,18 +235,18 @@ class Server:
         while True:
             try:
                 conn, addr = self.sock.accept()
-                print 'Connected by', addr
+                print( 'Connected by', addr )
                 return conn, addr
             except socket.timeout:
                 # we just reached the timeout, refresh the queue
-                print 'refreshing queue'
+                print( 'refreshing queue' )
                 self.queue.refresh()
                 if self.verbosity > 1:
                     print_stat(self.queue.cluster.status())
 
 
     def refresh_queue(self):
-        print str(datetime.datetime.now()),'refreshing queue'
+        print( str(datetime.datetime.now()),'refreshing queue' )
         self.queue.refresh()
         if self.verbosity > 1:
             print_stat(self.queue.cluster.status())
@@ -274,13 +282,13 @@ class Node:
     def reserve(self):
         self.used+=1
         if (self.used>self.ncores):
-            print "Internal error."
+            print( "Internal error." )
             sys.exit(1)
 
     def unreserve(self):
         self.used-=1
         if (self.used<0):
-            print "Internal error."
+            print( "Internal error." )
             sys.exit(1)
             
     
@@ -290,9 +298,10 @@ class Cluster:
         self.filename=filename
         self.nodes={}
 
-        for line in open(filename):
-            nd = Node(line)
-            self.nodes[nd.host] = nd
+        with open(filename) as fobj:
+            for line in fobj:
+                nd = Node(line)
+                self.nodes[nd.host] = nd
     
     def reserve(self,hosts):
         for h in hosts:
@@ -308,7 +317,7 @@ class Cluster:
         used=0
         use=[]
         nds=[]
-        nodes=self.nodes.keys()
+        nodes=list( self.nodes.keys() )
         nodes.sort()
         for h in nodes:
             nds.append({'hostname':h,
@@ -368,11 +377,13 @@ class Users:
         Only user and limits are loaded.
         """
         if os.path.exists(fname):
-            print 'Loading user info from:',fname
+
+            print( 'Loading user info from:',fname )
             with open(fname) as fobj:
                 data = yaml.load(fobj)
+
             self.users={}
-            for user,udata in data.iteritems():
+            for user,udata in data.items():
                 u = self._new_user(user)
                 u['limits'] = udata['limits']
                 self.users[user] = u
@@ -382,7 +393,7 @@ class Users:
         Write to file.  Only the username and limits are saved.
         """
         data={}
-        for user,udata in self.users.iteritems():
+        for user,udata in self.users.items():
             data[user] = {}
             data[user]['user'] = user
             data[user]['limits'] = udata['limits']
@@ -492,10 +503,8 @@ class Job(dict):
         else:
             self['time_run'] = None
             
-        f=open(fname,'w')
-        cPickle.dump(self,f,-1) #highest protocol
-        f.close()
-
+        with open(fname,'wb') as fobj:
+            pickle.dump(self,fobj,-1) #highest protocol
 
     def unspool(self):
         if (self['spool_fname']):
@@ -613,7 +622,7 @@ class Job(dict):
         if (N%threads>0):
             reason = 'Number of requested cores not divisible by threads'
             return pmatch, match, hosts, reason
-        print "threads,N",threads,N
+        print( "threads,N",threads,N )
         Np=N
 
         min_mem, reason = _get_dict_float(reqs,'min_mem',0.0)
@@ -651,7 +660,7 @@ class Job(dict):
                 
             # usable cores must be multiple of
             # number of threads requested
-            pucores = (nd.ncores/threads)*threads
+            pucores = (nd.ncores//threads)*threads
 
             if (pucores>=Np):
                 pmatch=True
@@ -659,7 +668,7 @@ class Job(dict):
                 Np-=pucores
 
             nfree= nd.ncores-nd.used
-            nfree = (nfree/threads)*threads
+            nfree = (nfree//threads)*threads
 
             if len(bgroups) > 0: ##any group in any group
                 ok=True
@@ -673,16 +682,12 @@ class Job(dict):
 
             if (nfree>=N):
                 hosts += [h]*N
-                #for x in xrange(N):
-                #    hosts.append(h)
                 N=0
                 match=True
                 break
             else:
                 N-=nfree
                 hosts += [h]*nfree
-                #for x in xrange(nfree):
-                #    hosts.append(h)
  
         if (not pmatch):
             reason = 'Not enough cores or mem satistifying condition.'
@@ -694,7 +699,7 @@ class Job(dict):
                 reason = 'Not enough free cores.'
     
         if self.verbosity > 1:
-            print pmatch, match, hosts, reason
+            print( pmatch, match, hosts, reason )
         return pmatch, match, hosts, reason
 
 
@@ -767,8 +772,6 @@ class Job(dict):
 
             if (nfree>=N):
                 hosts += [h]*N
-                #for x in xrange(N):
-                #    hosts.append(h)
                 N=0
                 match=True
                 break
@@ -855,8 +858,6 @@ class Job(dict):
             if (nd.used==0) and ok:
                 N-=1
                 hosts += [h]*nd.ncores
-                #for x in xrange(nd.ncores):
-                #    hosts.append(h)
                 if (N==0):
                     match=True
                     break
@@ -913,8 +914,6 @@ class Job(dict):
         nfree = nd.ncores-nd.used
         if (nfree>=N):
             hosts += [h]*N
-            #for x in xrange(N):
-            #    hosts.append(h)
             N=0
             match=True
         else:
@@ -980,7 +979,7 @@ class JobQueue:
 
         self.setup_spool()
 
-        print "Loading cluster from:",cluster_file
+        print( "Loading cluster from:",cluster_file )
         self.cluster = Cluster(cluster_file)
         self.queue = []
 
@@ -997,7 +996,7 @@ class JobQueue:
         spool_dir=self.keys.get('spool_dir',DEFAULT_SPOOL_DIR)
         self.spool_dir = os.path.expanduser(spool_dir)
         if not os.path.exists(self.spool_dir):
-            print 'making spool dir:',self.spool_dir
+            print( 'making spool dir:',self.spool_dir )
             os.makedirs(self.spool_dir)
 
     def users_file(self):
@@ -1006,27 +1005,28 @@ class JobQueue:
     def load_users(self):
         self.users = Users()
         fname = self.users_file()
-        print 'loading users from:',fname
         self.users.fromfile(fname)
 
     def save_users(self):
         fname = self.users_file()
-        print 'saving users to:',fname
+        print( 'saving users to:',fname )
         self.users.tofile(fname)
 
     def load_spool(self):
-        print "Loading jobs from:",self.spool_dir
+        print( "Loading jobs from:",self.spool_dir )
         pattern = os.path.join(self.spool_dir,'*')
         flist = glob.glob(pattern)
         for fn in sorted(flist):
             if fn[-4:] == '.run' or fn[-5:] == '.wait':
                 job = None
-                try:
-                    job = cPickle.load(open(fn))
-                except:
-                    print 'could not unpickle job file:',fn
-                    es=sys.exc_info()
-                    print 'caught unpickle exception:', es[0],'details:',es[1]
+
+                with open(fn,'rb') as fobj:
+                    try:
+                        job = pickle.load(fobj)
+                    except:
+                        print( 'could not unpickle job file:',fn )
+                        es=sys.exc_info()
+                        print( 'caught unpickle exception:', es[0],'details:',es[1] )
 
                 if job:
                     if job['status']=='run':
@@ -1071,7 +1071,7 @@ class JobQueue:
                 # job was told to run.
                 # see if the pid is still running, if not remove the job
                 if not self._pid_exists(job['pid']):
-                    print 'removing job %s, pid no longer valid' % job['pid']
+                    print( 'removing job %s, pid no longer valid' % job['pid'] )
                     pids_to_del.append(job['pid'])
 
                     self._unreserve_job_and_decrement_user(job)
@@ -1118,7 +1118,8 @@ class JobQueue:
 
     def _process_command(self, message):
         command = message['command']
-        print str(datetime.datetime.now()),'  got',command,'request'
+        print( str(datetime.datetime.now()),'  got',command,'request' )
+
         if command in ['sub']:
             self._process_submit_request(message)
         elif command == 'gethosts':
@@ -1351,15 +1352,25 @@ class JobQueue:
 
         limits = message.get('limits',{}) 
         if not limits:
-            self.response['error'] = 'Expected some limits to be sent'
+            #self.response['error'] = 'Expected some limits to be sent'
+            return
+
+        action=limits.pop('action','set')
+        if action not in ['clear','set']:
+            self.response['error'] = "action should be 'clear'or 'set'"
             return
 
         if self.verbosity > 1:
-            print 'limits sent:',limits
+            print( 'limits sent:',limits )
+
         # we have a reference here, might want to hide this
         udata = self.users.get(user)
-        for l,v in limits.items():
-            udata['limits'][l] = v
+
+        if action=='clear':
+            udata['limits'].clear()
+        else:
+            for l,v in limits.items():
+                udata['limits'][l] = v
 
         self.save_users()
         self.response['response'] = 'OK'
@@ -1498,9 +1509,9 @@ def print_stat(status):
     hdr={}
     for k in lens:
         hdr[k]=k.capitalize()
-    print fmt % hdr
+    print( fmt % hdr )
     for l in lines:
-        print fmt % l
+        print( fmt % l )
     if (tot_active_cores>0):
         perc=100.*status['used']/tot_active_cores
     else: perc=00.00
@@ -1512,7 +1523,7 @@ def print_stat(status):
                  perc,
                  status['ncores']-tot_active_cores)
 
-    print mess
+    print( mess )
 
 def print_users(users):
     """
@@ -1546,7 +1557,7 @@ def print_users(users):
     hdr = {}
     for k in lens:
         hdr[k] = k.capitalize()
-    print fmt % hdr
+    print( fmt % hdr )
     for uname in sorted(udata):
-        print fmt % udata[uname]
+        print( fmt % udata[uname] )
 
