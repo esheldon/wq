@@ -87,12 +87,11 @@ command: |
     cd ~/mydata
     cat data.txt | awk '{print $3}' 1> list.txt 2> list.err
 ```
-If you want to use more than one core, add the `N` specifier.
+You can put requirements in the job file.  For example, if you want to use more
+than one core, add the `N` specifier.
 ```yaml
 command: dostuff
 N: 35
-group: [gen1, gen3]
-notgroup: slow
 ```
 Note these 35 cores will not generally be from the same node!  To make sure
 you get only cores from the same node specify the mode to be `bycore1`
@@ -101,8 +100,16 @@ command: dostuff
 N: 8
 mode: bycore1
 ```
-You can put requirements in the job file.  For example, to grab 100 cores
-and only use nodes from groups gen1 and gen2, but not group slow
+You can also just get an entire node, or nodes by specifying mode `bynode`.
+This asks for two full nodes (`N` refers to number of nodes when mode is
+`bynode`):
+```yaml
+command: dostuff
+N: 2
+mode: bynode
+```
+To grab 100 cores and only use nodes from groups gen1 and gen2, but not group
+slow
 ```yaml
 command: dostuff 1> dostuff.out 2> dostuff.err
 N: 100
