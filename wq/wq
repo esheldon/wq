@@ -676,7 +676,7 @@ class Submitter(dict):
 
     def receive_kill(self,a,b):
         try:
-            self.remoteprocess.kill()
+            self.remoteprocess.send_signal(signal.SIGTERM)
         except:
             pass
 
