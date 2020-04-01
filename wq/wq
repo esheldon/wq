@@ -31,7 +31,7 @@ import sys
 from sys import stderr
 import yaml
 import os
-import signal 
+import signal
 import wq
 import time
 import subprocess
@@ -40,17 +40,20 @@ import uuid
 from optparse import OptionParser
 
 # need to move this into server.py and require a real installation
-_COMMANDS = ['serve','sub','ls','stat','rm','refresh']
+_COMMANDS = ['serve', 'sub', 'ls', 'stat', 'rm', 'refresh']
 
 # global variables, ick
 # only part is currently changeable through the command line
-PARS={'host':wq.DEFAULT_HOST, # Symbolic name meaning all available interfaces
-      'port':wq.DEFAULT_PORT,
-      'max_buffsize':wq.DEFAULT_MAX_BUFFSIZE}
+PARS = {
+    'host': wq.DEFAULT_HOST,  # Symbolic name meaning all available interfaces
+    'port': wq.DEFAULT_PORT,
+    'max_buffsize': wq.DEFAULT_MAX_BUFFSIZE,
+}
 
-# note this is different from the timeout for the server.
-# this is not currently used
-#SOCK_TIMEOUT = 45.0
+
+def yaml_load(obj):
+    return yaml.load(obj, Loader=yaml.SafeLoader)
+
 
 class ServerWrapper:
     """
@@ -520,8 +523,8 @@ def _process_singleline_yaml(data):
     r = re.sub(';\s*', '\n', data)
     # make sure there is a space between : and value
     r = r.replace(':',': ')
-    
-    yaml_data = yaml.load(r)
+
+    yaml_data = yaml_load(r)
 
     if not isinstance(yaml_data,dict):
         raise TypeError("could not parse input as yaml: '%s'" % data)
@@ -638,7 +641,7 @@ class Submitter(dict):
 
     def _process_job_file(self, fname):
 
-        reqs = yaml.load(open(fname))
+        reqs = yaml_load(open(fname))
 
         if not isinstance(reqs,dict):
             raise TypeError("could not parse job file as yaml: '%s'" % fname)
@@ -663,8 +666,8 @@ class Submitter(dict):
         r = re.sub(';\s*', '\n', require_opt)
         # make sure there is a space between : and value
         r = r.replace(':',': ')
-        
-        reqs = yaml.load(r)
+
+        reqs = yaml_load(r)
 
         if not isinstance(reqs,dict):
             raise TypeError("could not parse requirements as yaml: '%s'" % r)
@@ -882,7 +885,7 @@ def send_message(message, timeout=None, crash_on_timeout=False):
         sock.close()
 
         try:
-            rdict = yaml.load(data)
+            rdict = yaml_load(data)
         except:
             print('YAML err:', file=stderr)
             print(data, file=stderr)
@@ -983,7 +986,7 @@ def main():
 
     ## read the rc file
     try:
-        rcfile=yaml.load(open(os.environ['HOME']+'/.wqrc'))
+        rcfile=yaml_load(open(os.environ['HOME']+'/.wqrc'))
     except IOError:
         rcfile={}
 
