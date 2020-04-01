@@ -67,14 +67,14 @@ class ServerWrapper:
     """
     def __init__(self, args, **keys):
         import wq
-        parser=OptionParser(ServerWrapper.__doc__)
-        parser.add_option("-s", "--spool-dir", default=None, 
+        parser = OptionParser(ServerWrapper.__doc__)
+        parser.add_option("-s", "--spool-dir", default=None,
                           help="use the specified spool dir")
 
         options, args = parser.parse_args(args)
-        spool_dir=options.spool_dir
+        spool_dir = options.spool_dir
         if spool_dir is None:
-            spool_dir=wq.DEFAULT_SPOOL_DIR
+            spool_dir = wq.DEFAULT_SPOOL_DIR
 
         if len(args) < 1:
             parser.print_help()
@@ -85,32 +85,33 @@ class ServerWrapper:
             sys.exit(1)
 
         # these keywords get passed all the way down to JobQueue and Job
-        self.srv = wq.server.Server(args[0], 
-                                    port=PARS['port'], 
+        self.srv = wq.server.Server(args[0],
+                                    port=PARS['port'],
                                     spool_dir=spool_dir)
 
     def execute(self):
         self.srv.run()
 
+
 class JobLister(dict):
     """
     usage: wq ls [options]
 
-    print the job list to stdout.  
-    
+    print the job list to stdout.
+
     If -u/--user is sent, the listing is restricted to that user/users.
 
     If -f/--full is sent, the full job listing is given.  This is a yaml
-    document that can be read and processed to provide a customised 
-    listing.\n"""
+    document that can be read and processed to provide a customised
+    listing.
+    """
 
     def __init__(self, args):
-        #Command.__init__(self, args)
         self._process_args(args)
 
     def _process_args(self, args):
-        parser=OptionParser(JobLister.__doc__)
-        parser.add_option("-u", "--user", default=None, 
+        parser = OptionParser(JobLister.__doc__)
+        parser.add_option("-u", "--user", default=None,
                           help=("Only list jobs for the user.  can be "
                                 "a comma separated list"))
         parser.add_option("-f", "--full", action='store_true',
@@ -124,40 +125,40 @@ class JobLister(dict):
             self.user = self.user.split(',')
 
     def execute(self):
-        message={}
+        message = {}
         message['command'] = 'ls'
         resp = send_message(message)
 
-
         if self.full:
             if self.user is not None:
-                show=[r for r in resp['response'] if r['user'] in self.user]
+                show = [r for r in resp['response'] if r['user'] in self.user]
             else:
                 show = resp['response']
             if len(show) > 0:
-                print( yaml.dump(show) )
+                print(yaml.dump(show))
 
             return
 
-        names = ['pid','user','st','pri','nc','nh','host0','Tq','Trun','cmd']
+        names = ['pid', 'user', 'st', 'pri', 'nc',
+                 'nh', 'host0', 'Tq', 'Trun', 'cmd']
 
-        lens={}
+        lens = {}
         for k in names:
             lens[k] = len(k)
 
-        nrun=0
-        nwait=0
+        nrun = 0
+        nwait = 0
         lines = []
         timenow = time.time()
         for r in resp['response']:
 
             if (self.user is None) or (r['user'] in self.user):
                 if r['status'] == 'run':
-                    nrun+=1
+                    nrun += 1
                 else:
-                    nwait+=1
+                    nwait += 1
 
-                this={}
+                this = {}
                 this['pid'] = r['pid']
                 this['user'] = r['user']
                 this['pri'] = r['priority']
@@ -165,14 +166,13 @@ class JobLister(dict):
                 this['nc'] = self._get_ncores(r)
                 # this may replace command with job_name, if it exists
                 this['cmd'] = self._get_command(r)
-                this['Tq'] = self._get_time_in(r,timenow)
-                this['Trun'] = self._get_time_run(r,timenow)
+                this['Tq'] = self._get_time_in(r, timenow)
+                this['Trun'] = self._get_time_run(r, timenow)
 
                 this['nh'] = self._get_nhosts(r)
 
                 # this is the first host on the list
                 this['host0'] = self._get_host0(r)
-                
 
                 # for sorting
                 this['time_sub'] = r['time_sub']
@@ -180,73 +180,74 @@ class JobLister(dict):
                 for k in this:
                     if k in lens:
                         lens[k] = max(lens[k], len(('%s' % this[k])))
-                
+
                 lines.append(this)
 
         fmt = []
         for k in names:
-            if k in ['Tq','Trun']:
-                align=''
+            if k in ['Tq', 'Trun']:
+                align = ''
             else:
-                align='-'
+                align = '-'
+
             fmt.append('%('+k+')'+align+str(lens[k])+'s')
+
         fmt = ' '.join(fmt)
         fmt = ' '+fmt
 
-
         # this is the header for each column
         if len(lines) > 0:
-            print( fmt % {'pid':'Pid','user':'User',
-                         'st':'St', 'pri':'Pri', 'nc':'Nc',
-                         'nh':'Nh','host0':'Host0',
-                         'cmd':'Cmd','Tq':'Tq','Trun':'Trun'} )
+            print(
+                fmt % {'pid': 'Pid', 'user': 'User',
+                       'st': 'St', 'pri': 'Pri', 'nc': 'Nc',
+                       'nh': 'Nh', 'host0': 'Host0',
+                       'cmd': 'Cmd', 'Tq': 'Tq', 'Trun': 'Trun'}
+            )
 
         for l in sorted(lines, key=lambda x: x['time_sub']):
-            print( fmt % l )
+            print(fmt % l)
 
         njobs = nrun+nwait
-        stats = 'Jobs: %s Running: %s Waiting: %s' % (njobs,nrun,nwait)
+        stats = 'Jobs: %s Running: %s Waiting: %s' % (njobs, nrun, nwait)
         if self.user is not None:
-            print( ' User: %s %s' % (','.join(self.user),stats) )
+            print(' User: %s %s' % (','.join(self.user), stats))
         else:
-            print( ' %s' % stats )
-                
+            print(' %s' % stats)
+
     def _get_ncores(self, r):
         if r['status'] == 'run':
             return len(r['hosts'])
         else:
             return '-'
 
-    def _time_diff(self,dt):
-        ## surprisingly enough, nothing like this in date or time modules
-        ds = int (dt)
+    def _time_diff(self, dt):
+        # surprisingly, there is nothing like this in date or time modules
+        ds = int(dt)
         nd = int(ds/(24*60*60))
         ds -= nd*24*60*60
-        nh = int (ds/(3600))
+        nh = int(ds/(3600))
         ds -= nh*3600
-        nm = int (ds/60)
+        nm = int(ds/60)
         ds -= nm*60
         ns = ds
 
-        r=''
+        r = ''
 
         if nd > 0:
-            r = '%dd%02dh%02dm' % (nd,nh,nm)
+            r = '%dd%02dh%02dm' % (nd, nh, nm)
         elif nh > 0:
-            r = '%02dh%02dm%02ds' % (nh,nm,ns)
+            r = '%02dh%02dm%02ds' % (nh, nm, ns)
         elif nm > 0:
-            r = '%02dm%02ds' % (nm,ns)
+            r = '%02dm%02ds' % (nm, ns)
         else:
             r = '%02ds' % ns
 
         return r
-                  
 
-
-    def _get_time_in(self, r,timenow):
+    def _get_time_in(self, r, timenow):
         return self._time_diff(timenow-r['time_sub'])
 
-    def _get_time_run(self, r,timenow):
+    def _get_time_run(self, r, timenow):
         if r['status'] == 'run':
             return self._time_diff(timenow-r['time_run'])
         else:
@@ -274,7 +275,7 @@ class JobLister(dict):
         if not r['hosts']:
             return '-'
         else:
-            hd={}
+            hd = {}
             for host in r['hosts']:
                 hd[host] = host
             hosts = list(hd.keys())
@@ -283,7 +284,7 @@ class JobLister(dict):
 
     def _get_nhosts(self, r):
         if r['status'] == 'run':
-            hd={}
+            hd = {}
             for host in r['hosts']:
                 hd[host] = host
             return len(hd)
@@ -304,11 +305,12 @@ class JobLister(dict):
 
     def _get_command(self, r):
         c = r['job_name']
-        
+
         # remove spaces from name so we can use awk on
         # the output of wq ls
         c = '-'.join(str(c).split())
         return c
+
 
 class Stats(dict):
     """
@@ -318,18 +320,19 @@ class Stats(dict):
     """
 
     def __init__(self, args):
-        parser=OptionParser(Stats.__doc__)
+        parser = OptionParser(Stats.__doc__)
         options, args = parser.parse_args(args)
 
     def execute(self):
-        message={}
+        message = {}
         message['command'] = 'stat'
 
         resp = send_message(message)
 
-        status=resp['response']
+        status = resp['response']
 
         wq.server.print_stat(status)
+
 
 class UsersLister(dict):
     """
@@ -339,20 +342,23 @@ class UsersLister(dict):
     """
 
     def __init__(self, args):
-        parser=OptionParser(Stats.__doc__)
+        parser = OptionParser(Stats.__doc__)
         options, args = parser.parse_args(args)
 
     def execute(self):
-        message={}
+        message = {}
         message['command'] = 'users'
 
         resp = send_message(message)
 
-        users=resp['response']
+        users = resp['response']
 
         wq.server.print_users(users)
 
-_LIMIT_VALID_KEYS=['Njobs','Ncores']
+
+_LIMIT_VALID_KEYS = ['Njobs', 'Ncores']
+
+
 class Limiter(dict):
     """
     usage: wq limit "key1:val1; key2:val2; ..."
@@ -364,7 +370,7 @@ class Limiter(dict):
     """
 
     def __init__(self, args):
-        parser=OptionParser(Limiter.__doc__)
+        parser = OptionParser(Limiter.__doc__)
         options, args = parser.parse_args(args)
 
         if len(args) < 1:
@@ -372,18 +378,18 @@ class Limiter(dict):
             sys.exit(1)
 
         if args[0] == 'clear':
-            self.limits={'action':'clear'}
+            self.limits = {'action': 'clear'}
         else:
             self.limits = _process_singleline_yaml(args[0])
-            
+
             for key in self.limits:
                 if key not in _LIMIT_VALID_KEYS:
-                    mess="limit should be one of %s, got: '%s'"
-                    raise ValueError(mess % (_LIMIT_VALID_KEYS,key))
+                    mess = "limit should be one of %s, got: '%s'"
+                    raise ValueError(mess % (_LIMIT_VALID_KEYS, key))
             self.limits['action'] = 'set'
 
     def execute(self):
-        message={}
+        message = {}
         message['command'] = 'limit'
         message['user'] = os.environ['USER']
         message['limits'] = self.limits
@@ -392,15 +398,16 @@ class Limiter(dict):
 
         print(resp['response'], file=stderr)
 
+
 class NodeCommand(dict):
     """
     usage: wq node astro001 astro002 "status:online;"
 
     set a node from offline to online or vice versa
     """
-    
+
     def __init__(self, args):
-        parser=OptionParser(NodeCommand.__doc__)
+        parser = OptionParser(NodeCommand.__doc__)
         options, args = parser.parse_args(args)
 
         if len(args) < 2:
@@ -410,14 +417,14 @@ class NodeCommand(dict):
         self.yamline = _process_singleline_yaml(args[1])
 
     def execute(self):
-        message={}
+        message = {}
         message['command'] = 'node'
         message['user'] = os.environ['USER']
         message['node'] = self.node
         message['yamline'] = self.yamline
-        resp = send_message(message) 
+        resp = send_message(message)
         print(resp['response'], file=stderr)
-	
+
 
 class Refresher(dict):
     """
@@ -427,14 +434,15 @@ class Refresher(dict):
     """
 
     def __init__(self, args):
-        parser=OptionParser(Refresher.__doc__)
+        parser = OptionParser(Refresher.__doc__)
         options, args = parser.parse_args(args)
 
     def execute(self):
-        message={}
+        message = {}
         message['command'] = 'refresh'
 
         send_message(message)
+
 
 class Remover(dict):
     """
@@ -445,7 +453,7 @@ class Remover(dict):
     """
 
     def __init__(self, args):
-        parser=OptionParser(Remover.__doc__)
+        parser = OptionParser(Remover.__doc__)
         options, args = parser.parse_args(args)
 
         if len(args) < 1:
@@ -454,23 +462,23 @@ class Remover(dict):
 
         pid = args[0]
         if pid == 'all':
-            self.pid=['all']
+            self.pid = ['all']
         else:
             self.pid = [int(p) for p in args]
 
     def execute(self):
         for pid in self.pid:
             self.do_remove(pid)
-    
+
     def do_remove(self, pid):
-        message={}
+        message = {}
         message['command'] = 'rm'
         message['pid'] = pid
         message['user'] = os.environ['USER']
 
         resp = send_message(message)
 
-        if resp['response']=='OK':
+        if resp['response'] == 'OK':
             if 'pids_to_kill' not in resp:
                 print("Internal error, server shuold "
                       "return pids_to_kill.", file=stderr)
@@ -480,28 +488,29 @@ class Remover(dict):
             pids_to_kill = resp['pids_to_kill']
             for pidtokill in pids_to_kill:
 
-                os.kill(pidtokill,signal.SIGTERM)
-                time.sleep (0.1) ## sleep  a bit
-                cc=0
+                os.kill(pidtokill, signal.SIGTERM)
+                time.sleep(0.1)  # sleep  a bit
+                cc = 0
 
-                #see when it disappears, up to 10sec
-                while (self._pid_exists(pidtokill) and (cc<100)):
+                # see when it disappears, up to 10sec
+                while (self._pid_exists(pidtokill) and (cc < 100)):
                     time.sleep(0.1)
-                    cc+=1
+                    cc += 1
+
                 if (self._pid_exists(pidtokill)):
-                    #bastard wouldn't die
-                    os.kill(pidtokill,signal.SIGKILL)
+                    # bastard wouldn't die
+                    os.kill(pidtokill, signal.SIGKILL)
                     time.sleep(1)
 
-            ## Now refresh to remove it from queue
-            message={}
+            # Now refresh to remove it from queue
+            message = {}
             message['command'] = 'refresh'
             resp = send_message(message)
 
         else:
-            print( "Cannot remove, reason=", resp['error'], file=stderr )
+            print("Cannot remove, reason=", resp['error'], file=stderr)
 
-    def _pid_exists(self, pid):        
+    def _pid_exists(self, pid):
         """ Check For the existence of a unix pid. """
         try:
             # this doesn't actually kill the job, it does nothing if the pid
@@ -512,25 +521,26 @@ class Remover(dict):
         else:
             return True
 
+
 def _process_singleline_yaml(data):
     import re
 
-    yaml_data={}
+    yaml_data = {}
     if data is None:
         return yaml_data
 
     # convert semicolon to newline
-    r = re.sub(';\s*', '\n', data)
+    r = re.sub(r';\s*', '\n', data)
+
     # make sure there is a space between : and value
-    r = r.replace(':',': ')
+    r = r.replace(':', ': ')
 
     yaml_data = yaml_load(r)
 
-    if not isinstance(yaml_data,dict):
+    if not isinstance(yaml_data, dict):
         raise TypeError("could not parse input as yaml: '%s'" % data)
 
     return yaml_data
-
 
 
 class Submitter(dict):
@@ -538,7 +548,8 @@ class Submitter(dict):
     usage: wq sub [options] [args]
 
     There are three modes.  Note you can add -r/--require to each of these
-    *except* batch mode.  -r/--require will over-ride requirements in job files.
+    *except* batch mode.  -r/--require will over-ride requirements in job
+    files.
 
         - Send a command as an argument.
 
@@ -564,12 +575,12 @@ class Submitter(dict):
         self._process_args(args)
 
     def _process_args(self, args):
-        parser=OptionParser(Submitter.__doc__)
-        parser.add_option("-r", "--require", 
+        parser = OptionParser(Submitter.__doc__)
+        parser.add_option("-r", "--require",
                           default=None, help="optional requirements for job")
-        parser.add_option("-b", "--batch", action='store_true', 
+        parser.add_option("-b", "--batch", action='store_true',
                           help="Submit jobs in batch mode.")
-        parser.add_option("-c", "--command", default=None, 
+        parser.add_option("-c", "--command", default=None,
                           help="The command to run as a string")
 
         options, args = parser.parse_args(args)
@@ -578,11 +589,11 @@ class Submitter(dict):
 
         # batch mode is special; just store the job files and let
         # execute() deal properly with them
-        self.isbatch=False
+        self.isbatch = False
         if len(args) > 0 and options.batch:
             # we just store the files and later run them when
             # execute is done
-            self.isbatch=True
+            self.isbatch = True
             self.job_files = args[:]
             return
 
@@ -595,14 +606,12 @@ class Submitter(dict):
             commandline, reqs = self._process_job_file(job_file)
         else:
             raise ValueError
-        
 
         if commandline is None:
             parser.print_help()
             sys.exit(1)
 
         # requirements sent using -r/--require over-ride
-        #reqs_from_opt = self._process_require_opt(self['require_opt'])
         reqs_from_opt = _process_singleline_yaml(self['require_opt'])
 
         for ro in reqs_from_opt:
@@ -624,14 +633,14 @@ class Submitter(dict):
         no requirements
         """
 
-        print('submitting',job_file, file=stderr)
+        print('submitting', job_file, file=stderr)
         port = str(PARS['port'])
 
-        req=''
+        req = ''
         if self['require_opt'] is not None:
-            req='-r "%s"' % self['require_opt']
+            req = '-r "%s"' % self['require_opt']
 
-        command="""
+        command = """
             nohup wq -p "{port}" sub {req} "{jobf}" 2>&1 > "{logf}" &
         """.format(port=port,
                    jobf=job_file,
@@ -643,7 +652,7 @@ class Submitter(dict):
 
         reqs = yaml_load(open(fname))
 
-        if not isinstance(reqs,dict):
+        if not isinstance(reqs, dict):
             raise TypeError("could not parse job file as yaml: '%s'" % fname)
 
         if 'command' not in reqs:
@@ -658,71 +667,76 @@ class Submitter(dict):
     def _process_require_opt(self, require_opt):
         import re
 
-        reqs={}
+        reqs = {}
         if require_opt is None:
             return reqs
 
         # convert semicolon to newline
-        r = re.sub(';\s*', '\n', require_opt)
+        r = re.sub(r';\s*', '\n', require_opt)
+
         # make sure there is a space between : and value
-        r = r.replace(':',': ')
+        r = r.replace(':', ': ')
 
         reqs = yaml_load(r)
 
-        if not isinstance(reqs,dict):
+        if not isinstance(reqs, dict):
             raise TypeError("could not parse requirements as yaml: '%s'" % r)
 
         return reqs
 
-    def receive_signal(self,a,b):
+    def receive_signal(self, a, b):
         pass
 
-    def receive_kill(self,a,b):
+    def receive_kill(self, a, b):
         try:
             self.remoteprocess.send_signal(signal.SIGTERM)
         except:
             pass
 
-        self.message['command']='notify'
-        self.message['notification']='done'
+        self.message['command'] = 'notify'
+        self.message['notification'] = 'done'
         sres = send_message(self.message)
         self.print_res(sres)
         exit(0)
-                                        
+
     def make_command_list(self, target_machine, command, require):
         # full command, we first change directory to CWD
-        pwd =os.getcwd()
+        pwd = os.getcwd()
         if 'precmd' in self.rcfile:
-            full_command=self.rcfile['precmd']+" ; "
+            full_command = self.rcfile['precmd']+" ; "
         else:
-            full_command=""
-        full_command+='cd '+pwd+'; '+command
+            full_command = ""
+        full_command += 'cd '+pwd+'; '+command
 
-        ## replace %hostfile% with actual hostfile
+        # replace %hostfile% with actual hostfile
         if self.hostfile:
-            full_command=full_command.replace('%hostfile%',self.hostfile)
-        if 'threads' in self['require']:
-            full_command=full_command.replace('%threads%',str(self['require']['threads']))
+            full_command = full_command.replace('%hostfile%', self.hostfile)
 
-        if target_machine=='localhost':
-            shell=os.environ['SHELL']
-            cmdlist = [shell,'-c',command]
+        if 'threads' in self['require']:
+            full_command = full_command.replace(
+                '%threads%',
+                str(self['require']['threads']),
+            )
+
+        if target_machine == 'localhost':
+            shell = os.environ['SHELL']
+            cmdlist = [shell, '-c', command]
         else:
             # first, force pseudo tty; this is key to make sure command
             # dies if this client dies
             # also -A forwards ssh agent
-            cmdlist = ['ssh','-t', '-t','-A']
+            cmdlist = ['ssh', '-t', '-t', '-A']
 
             # should we forward X? default is no no.  This is in the
             # requirements as
             #   X: true or X: 1 for yes (anything evaluates as True in python)
             #   X: false or X: 0 for no
-            xforward = require.get('X',False)
+
+            xforward = require.get('X', False)
             if xforward:
                 cmdlist.append('-X')
             else:
                 cmdlist.append('-x')
-
 
             cmdlist.append(target_machine)
             cmdlist.append(full_command)
@@ -731,34 +745,37 @@ class Submitter(dict):
 
     def prepare_hostlist(self, hostlist):
         if 'threads' in self['require']:
-            th=self['require']['threads']
-            if th<=0:
-                print( "Weird value for threads. Ignoring." )
-            elif th>1:
-                dct={}
+            th = self['require']['threads']
+            if th <= 0:
+                print('Bad value for threads %s. Ignoring.' % th)
+
+            elif th > 1:
+                dct = {}
                 for h in hostlist:
-                    if dct.has_key(h):
-                        dct[h]+=1
+                    if h in dct:
+                        dct[h] += 1
                     else:
-                        dct[h]=1
-                nhostlist=[]
+                        dct[h] = 1
+
+                nhostlist = []
                 for h in dct:
-                    n=dct[h]
-                    if (n%th!=0):
-                        print( "Host",h,"has",n%th,"dangling cores. Ignoring." )
+                    n = dct[h]
+                    if (n % th != 0):
+                        print('Host', h, 'has',
+                              n % th, 'dangling cores. Ignoring.')
+
                     for i in range(n/th):
                         nhostlist.append(h)
-                hostlist=nhostlist
-                        
-        return hostlist
 
+                hostlist = nhostlist
+
+        return hostlist
 
     def execute(self):
         """
-
-        - build the message request for the server.  
+        - build the message request for the server.
         - send the message and await reply
-        - Maybe wait until we can run 
+        - Maybe wait until we can run
         - ssh into the target machine and run the job in the same
           directory where this client is running.
 
@@ -780,7 +797,7 @@ class Submitter(dict):
 
         if sres['response'] == 'wait':
             # wait until we can go
-            print("waiting:",sres['reason'], file=stderr)
+            print('waiting:', sres['reason'], file=stderr)
             fname = sres['spool_fname']
             wsleep = sres['spool_wait']
             while True:
@@ -792,53 +809,57 @@ class Submitter(dict):
                 except IOError:
                     pass
 
+            message['command'] = 'gethosts'
+            sres = send_message(message)
 
-            message['command']='gethosts'
-            sres=send_message(message)
+        # save final message for potential kill
+        self.message = message
 
-        ## save final message for potential kill
-        self.message=message
-
-        ## if hostfile specified need to create one
-        hosts=sres['hosts']
+        # if hostfile specified need to create one
+        hosts = sres['hosts']
         if 'hostfile' in self['require']:
-            if (self['require']['hostfile']=='auto'):
-                self.hostfile=str(uuid.uuid4())[:8]+'.hostfile'
+            if (self['require']['hostfile'] == 'auto'):
+                self.hostfile = str(uuid.uuid4())[:8]+'.hostfile'
             else:
-                self.hostfile=self['require']['hostfile']
-            f=open(self.hostfile,'w')
-            for h in self.prepare_hostlist(hosts):
-                f.write(h+'\n')
-            f.close()
+                self.hostfile = self['require']['hostfile']
+
+            with open(self.hostfile, 'w') as fobj:
+                for h in self.prepare_hostlist(hosts):
+                    fobj.write(h+'\n')
         else:
-            self.hostfile=None
+            self.hostfile = None
 
-        target=hosts[0]
-        command=self['commandline']
-        print( command )
+        target = hosts[0]
+        command = self['commandline']
+        print(command)
 
-        ## here we execute
-        print("executing on host: %s with " "pid: %s" % (target,message['pid']), file=stderr)
+        print(
+            'executing on host: %s '
+            'with pid: %s' % (target, message['pid']),
+            file=stderr,
+        )
         signal.signal(signal.SIGTERM, self.receive_kill)
 
-        cmdlist = self.make_command_list(target,command,self['require'])
-        self.remoteprocess= subprocess.Popen(cmdlist)
+        cmdlist = self.make_command_list(target, command, self['require'])
+        self.remoteprocess = subprocess.Popen(cmdlist)
         self.remoteprocess.wait()
 
-        ### now we notify done.
-        message['command']='notify'
-        message['notification']='done'
-        ## Try to remove hostfile
-        if (self.hostfile):
+        # now we notify done.
+        message['command'] = 'notify'
+        message['notification'] = 'done'
+
+        # Try to remove hostfile
+        if self.hostfile is not None:
             try:
-                os.remove(self.hostfile) 
-            except:
+                os.remove(self.hostfile)
+            except FileNotFoundError:
                 pass
+
         # we want to die if the notification fails so the server will see
         # the missing pid
         sres = send_message(self.message)
-        if sres['response']!='OK':
-            print( "Bad response from server:" )
+        if sres['response'] != 'OK':
+            print('Bad response from server:')
             self.print_res(sres)
 
     def print_res(self, res):
@@ -846,11 +867,14 @@ class Submitter(dict):
         for k in res:
             kk = k+': '
             pf = pprint.pformat(res[k])
-            print('%-15s %s' % (kk,pf), file=stderr)
+            print('%-15s %s' % (kk, pf), file=stderr)
+
 
 def socket_connect(sock, conninfo, crash_on_timeout=False):
-    # crash will only happen if timeouts have been enabled, otherwise we just
-    # wait
+    """
+    crash will only happen if timeouts have been enabled, otherwise we just
+    wait
+    """
     if crash_on_timeout:
         sock.connect(conninfo)
     else:
@@ -875,9 +899,9 @@ def send_message(message, timeout=None, crash_on_timeout=False):
     conninfo = (PARS['host'], PARS['port'])
     socket_connect(sock, conninfo, crash_on_timeout=crash_on_timeout)
 
-    rdict=None
+    rdict = None
     try:
-        jmess=yaml.dump(message)
+        jmess = yaml.dump(message)
 
         wq.server.socket_send(sock, jmess)
         data = wq.server.socket_recieve(sock, PARS['max_buffsize'])
@@ -887,6 +911,7 @@ def send_message(message, timeout=None, crash_on_timeout=False):
         try:
             rdict = yaml_load(data)
         except:
+            # no way to predict the error, so using bare except
             print('YAML err:', file=stderr)
             print(data, file=stderr)
             sys.exit(1)
@@ -898,10 +923,6 @@ def send_message(message, timeout=None, crash_on_timeout=False):
             raise RuntimeError("Internal error. Expected a response "
                                "and got screwed.")
 
-    #except:
-    #    es=sys.exc_info()
-    #    print('caught exception type:', es[0],'details:',es[1], file=stderr)
-    #    rdict=None
     finally:
         sock.close()
 
@@ -933,6 +954,7 @@ def get_command_obj(args, **keys):
     else:
         return None
 
+
 def preprocess_args(args, parser):
     """
     Ready the args for input to the commands.
@@ -941,7 +963,7 @@ def preprocess_args(args, parser):
     can't use optparse for that.
     """
 
-    keys={}
+    keys = {}
     if len(args) == 0:
         parser.print_help()
         sys.exit(1)
@@ -951,7 +973,7 @@ def preprocess_args(args, parser):
         sys.exit(1)
 
     try:
-        ind=args.index('-p')
+        ind = args.index('-p')
         try:
             # update our global var here. The client and
             # server would both use this
@@ -970,9 +992,11 @@ def preprocess_args(args, parser):
 
     return args, keys
 
+
 def main():
 
-    parser=OptionParser(__doc__)
+    parser = OptionParser(__doc__)
+
     # this won't be used in the usual way
     parser.add_option("-p", "--port", default=None, help="port for socket")
 
@@ -984,28 +1008,27 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    ## read the rc file
+    # read the rc file
     try:
-        rcfile=yaml_load(open(os.environ['HOME']+'/.wqrc'))
+        rcfile = yaml_load(open(os.environ['HOME']+'/.wqrc'))
     except IOError:
-        rcfile={}
+        rcfile = {}
 
-    cmd_obj.rcfile=rcfile
-
+    cmd_obj.rcfile = rcfile
 
     try:
         cmd_obj.execute()
     except KeyboardInterrupt:
         pass
-    except IOError as e:
+    except IOError:
         # this is most certainly a "broken pipe" type error when someone pipes
         # to head or something
-        es=sys.exc_info()
+        es = sys.exc_info()
         if 'Broken pipe' not in str(es[1]):
-            print('caught exception type: %s  details: %s\n' % (es[0],es[1]))
+            print('caught exception type: %s  details: %s\n' % (es[0], es[1]))
             raise
     except:
-        print("Unexpected error:", sys.exc_info()[0], file=stderr)
+        print('Unexpected error: ', sys.exc_info()[0], file=stderr)
         raise
     finally:
         # this helps with pipes, needed in addition to above catch of IOError
@@ -1015,5 +1038,5 @@ def main():
             pass
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
