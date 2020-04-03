@@ -641,7 +641,7 @@ class Submitter(dict):
             req = '-r "%s"' % self['require_opt']
 
         command = """
-            nohup wq -p "{port}" sub {req} "{jobf}" 2>&1 > "{logf}" &
+            nohup wq -p "{port}" sub {req} "{jobf}" > "{logf}" 2>&1 &
         """.format(port=port,
                    jobf=job_file,
                    logf=job_file+'.wqlog',
