@@ -9,7 +9,7 @@ setup(name="wq",
       url="https://github.com/esheldon/awq",
       author="Erin Scott Sheldon, Anze Slosar",
       author_email="erin.sheldon@gmail.com",
-      scripts=["wq/wq"],
+      scripts=["bin/wq"],
       packages=['wq'])
 
 
