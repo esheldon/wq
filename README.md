@@ -451,22 +451,3 @@ Installation
 ### Dependencies
 
 You need a fairly recent python and pyyaml <http://pyyaml.org/>
-
-### Install
-
-Get the source, untar it, cd into the created directory, and type this
-to install into the "usual" place
-
-    python setup.py install
-
-To install into a particular prefix
-
-    python setup.py install --prefix=/some/path
-
-
-Authors
--------
-
-Erin Sheldon: erin dot sheldon at gmail dot com
-
-Anze Slosar: anze at bnl dot gov
