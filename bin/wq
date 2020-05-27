@@ -265,23 +265,6 @@ class JobLister(dict):
         else:
             return r['hosts'][0]
 
-    def _get_hosts(self, r):
-        """
-        this is obsolete
-        """
-        if r['status'] != 'run':
-            return '-'
-
-        if not r['hosts']:
-            return '-'
-        else:
-            hd = {}
-            for host in r['hosts']:
-                hd[host] = host
-            hosts = list(hd.keys())
-            hosts.sort()
-            return ','.join(hosts)
-
     def _get_nhosts(self, r):
         if r['status'] == 'run':
             hd = {}
@@ -809,7 +792,7 @@ class Submitter(dict):
                 except IOError:
                     pass
 
-            message['command'] = 'gethosts'
+            message['command'] = 'get_hosts'
             sres = send_message(message)
 
         # save final message for potential kill
@@ -817,8 +800,17 @@ class Submitter(dict):
 
         # if hostfile specified need to create one
         hosts = sres['hosts']
-        if 'hostfile' in self['require']:
-            if (self['require']['hostfile'] == 'auto'):
+
+        reqs = self['require']
+        if 'host_file' in reqs:
+            self.hostfile = reqs['host_file']
+        elif 'hostfile' in reqs:
+            self.hostfile = reqs['hostfile']
+        else:
+            self.hostfile = None
+
+        if self.hostfile is not None:
+            if self.hostfile == 'auto':
                 self.hostfile = str(uuid.uuid4())[:8]+'.hostfile'
             else:
                 self.hostfile = self['require']['hostfile']
@@ -826,8 +818,6 @@ class Submitter(dict):
             with open(self.hostfile, 'w') as fobj:
                 for h in self.prepare_hostlist(hosts):
                     fobj.write(h+'\n')
-        else:
-            self.hostfile = None
 
         target = hosts[0]
         command = self['commandline']

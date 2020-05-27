@@ -510,6 +510,14 @@ class Job(dict):
 
         self.verbosity = 1
 
+    def _normalize_require(self):
+        """
+        deal with old names
+        """
+        reqs = self['require']
+        if 'notgroup' in reqs:
+            reqs['not_group'] = reqs['notgroup']
+
     def spool(self):
         if self['status'] == 'ready':
             self['status'] = 'run'
@@ -551,25 +559,25 @@ class Job(dict):
             blocked_groups = []
 
         # default to bycore
-        submit_mode = self['require'].get('mode', 'bycore')
+        submit_mode = self['require'].get('mode', 'by_core')
         # can also add reasons from the match methods
         # later
 
-        if (submit_mode == 'bycore'):
+        if submit_mode in ('by_core', 'bycore'):
             pmatch, match, hosts, reason = \
-                    self._match_bycore(cluster, blocked_groups)
-        elif (submit_mode == 'bycore1'):
+                    self._match_by_core(cluster, blocked_groups)
+        elif submit_mode in ('by_core1', 'bycore1'):
             pmatch, match, hosts, reason = \
-                    self._match_bycore1(cluster, blocked_groups)
-        elif (submit_mode == 'bynode'):
+                    self._match_by_core1(cluster, blocked_groups)
+        elif submit_mode in ('by_node', 'bynode'):
             pmatch, match, hosts, reason = \
-                    self._match_bynode(cluster, blocked_groups)
-        elif (submit_mode == 'byhost'):
+                    self._match_by_node(cluster, blocked_groups)
+        elif submit_mode in ('by_host', 'byhost'):
             pmatch, match, hosts, reason = \
-                    self._match_byhost(cluster, blocked_groups)
-        elif (submit_mode == 'bygroup'):
+                    self._match_by_host(cluster, blocked_groups)
+        elif submit_mode in ('by_group', 'bygroup'):
             pmatch, match, hosts, reason = \
-                    self._match_bygroup(cluster, blocked_groups)
+                    self._match_by_group(cluster, blocked_groups)
         else:
             pmatch = False  # unknown request never mathces
             reason = "bad submit_mode '%s'" % submit_mode
@@ -626,7 +634,7 @@ class Job(dict):
             val = [val]
         return val
 
-    def _match_bycore(self, cluster, bgroups):
+    def _match_by_core(self, cluster, bgroups):
         pmatch = False
         match = False
         hosts = []  # actually matched hosts
@@ -676,7 +684,7 @@ class Job(dict):
                 if not ok:
                     continue  # not in the group
 
-            ing = self._get_req_list(reqs, 'notgroup')
+            ing = self._get_req_list(reqs, 'not_group')
             if len(ing) > 0:  # any group in any group
                 ok = True
                 for g in ing:
@@ -732,7 +740,7 @@ class Job(dict):
 
         return pmatch, match, hosts, reason
 
-    def _match_bycore1(self, cluster, bgroups):
+    def _match_by_core1(self, cluster, bgroups):
         """
         Get cores all from one node.
         """
@@ -773,7 +781,7 @@ class Job(dict):
                 if not ok:
                     continue  # not in the group
 
-            ing = self._get_req_list(reqs, 'notgroup')
+            ing = self._get_req_list(reqs, 'not_group')
             if len(ing) > 0:  # any group in any group
                 ok = True
                 for g in ing:
@@ -819,7 +827,7 @@ class Job(dict):
 
         return pmatch, match, hosts, reason
 
-    def _match_bynode(self, cluster, bgroups):
+    def _match_by_node(self, cluster, bgroups):
         pmatch = False
         match = False
         hosts = []  # actually matched hosts
@@ -863,7 +871,7 @@ class Job(dict):
                 if not ok:
                     continue  # not in the group
 
-            ing = self._get_req_list(reqs, 'notgroup')
+            ing = self._get_req_list(reqs, 'not_group')
             if len(ing) > 0:  # any group in any group
                 ok = True
                 for g in ing:
@@ -904,7 +912,7 @@ class Job(dict):
 
         return pmatch, match, hosts, reason
 
-    def _match_byhost(self, cluster, bgroups):
+    def _match_by_host(self, cluster, bgroups):
 
         pmatch = False
         match = False
@@ -951,7 +959,7 @@ class Job(dict):
 
         return pmatch, match, hosts, reason
 
-    def _match_bygroup(self, cluster, bgroups):
+    def _match_by_group(self, cluster, bgroups):
 
         pmatch = False
         match = False
@@ -1151,8 +1159,8 @@ class JobQueue(object):
 
         if command in ['sub']:
             self._process_submit_request(message)
-        elif command == 'gethosts':
-            self._process_gethosts(message)
+        elif command == 'get_hosts':
+            self._process_get_hosts(message)
         elif command in ['ls']:
             self._process_listing_request(message)
         elif command in ['lsfull']:
@@ -1174,7 +1182,7 @@ class JobQueue(object):
             self._process_node_request(message)
         else:
             self.response['error'] = (
-                "only support 'sub','gethosts', "
+                "only support 'sub','get_hosts', "
                 "'ls','stat','users','rm','notify','node'"
                 "'refresh' commands"
             )
@@ -1300,7 +1308,7 @@ class JobQueue(object):
             elif self.response['response'] == 'wait':
                 self.response['reason'] = newjob['reason']
 
-    def _process_gethosts(self, message):
+    def _process_get_hosts(self, message):
         pid = message.get('pid', None)
         if pid is None:
             self.response['error'] = \

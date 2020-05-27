@@ -94,11 +94,11 @@ command: dostuff
 N: 35
 ```
 Note these 35 cores will not generally be from the same node!  To make sure
-you get only cores from the same node specify the mode to be `bycore1`
+you get only cores from the same node specify the mode to be `by_core1`
 ```yaml
 command: dostuff
 N: 8
-mode: bycore1
+mode: by_core1
 ```
 You can also just get an entire node, or nodes by specifying mode `bynode`.
 This asks for two full nodes (`N` refers to number of nodes when mode is
@@ -114,9 +114,9 @@ slow
 command: dostuff 1> dostuff.out 2> dostuff.err
 N: 100
 group: [gen1, gen3]
-notgroup: slow
+not_group: slow
 ```
-Note group/notgroup are special in that they can take either a scalar or a
+Note group/not_group are special in that they can take either a scalar or a
 list. You can also specify lists using note-taking notation
 ```yaml
 group:
@@ -160,23 +160,23 @@ You can use requirements to change what nodes are selected for your job. The fol
 is the full list
 
 * mode - The mode of node selection.  Available modes are
- * bycore - Select single cores.  Modifiers like *N* refer to number of cores.
- * bycore1 - Select cores from a single node.
- * bynode - Select full nodes.  Modifiers like *N* refer to number of nodes.
- * byhost - Select a particular host by name.  Modifiers like *N* refer to number of cores.
- * bygroup - Select **all** the nodes from particular groups; different from the *group* requirement.
+  * by_core - Select single cores.  Modifiers like *N* refer to number of cores.
+  * by_core1 - Select cores from a single node.
+  * by_node - Select full nodes.  Modifiers like *N* refer to number of nodes.
+  * by_host - Select a particular host by name.  Modifiers like *N* refer to number of cores.
+  * by_group - Select **all** the nodes from particular groups; different from the *group* requirement.
 * N - The number of nodes or cores, depending on the mode.
 * group - Select cores or nodes from the specified group or groups.  This can be a scalar or list
-* notgroup - Select cores or nodes from machines not in the specified group or groups.
-* host - The host name. When mode is byhost, you must also send this requirement
-* min_cores - Limit to nodes with at least this many cores.  Only applies when mode is *bynode*.
-* min_mem - Limit to nodes with at least this much memory in GB.  Only applies when mode is *bycore*, *bycore1*, *bynode*.
+* not_group - Select cores or nodes from machines not in the specified group or groups.
+* host - The host name. When mode is by_host, you must also send this requirement
+* min_cores - Limit to nodes with at least this many cores.  Only applies when mode is *by_node*.
+* min_mem - Limit to nodes with at least this much memory in GB.  Only applies when mode is *by_core*, *by_core1*, *by_node*.
 * X - This determines if ssh X display forwarding is used, default is False. For yes use true,1 for no use false,0
 * priority - Currently should be one of 
- * low - lowest priority
- * med - medium priority, the default
- * high - high priority
- * block - block other jobs until this one can run.
+  * low - lowest priority
+  * med - medium priority, the default
+  * high - high priority
+  * block - block other jobs until this one can run.
 * job_name - A name to display in job listings. Usually the command, or an abbreviated form of the command, is shown.
 * hostfile - An optional file in which to save allocated node names. Useful for MPI jobs using mpirun. If hostfile equals to 'auto' a name will be generated automatically and put in place of %hostfile% in command line
 * threads - An optional argument that controls hosts listed in hostfile for running hybrid jobs. See example below.
@@ -206,7 +206,7 @@ N: 5
 group: new
 
 # Do not select from this set of groups
-notgroup: [slow,crappy]
+not_group: [slow,crappy]
 
 # require at least this many cores
 min_cores: 8
