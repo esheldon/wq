@@ -51,7 +51,7 @@ commands as an option
     wq sub job_file 
 
 A job file contains a "command" and a set of requirements; see the Job Files
-section for more details.  
+section for more details.
 
 If -b/--batch is sent, the job or jobs are submitted in batch mode in the
 **background**, whereas normaly jobs are kept in the foreground.  Batch mode
@@ -181,7 +181,7 @@ is the full list
 * hostfile - An optional file in which to save allocated node names. Useful for MPI jobs using mpirun. If hostfile equals to 'auto' a name will be generated automatically and put in place of %hostfile% in command line
 * threads - An optional argument that controls hosts listed in hostfile for running hybrid jobs. See example below.
 
-### examples
+### More example job files
 
 Simple one core example
 ```yaml
