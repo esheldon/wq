@@ -100,13 +100,13 @@ command: dostuff
 N: 8
 mode: by_core1
 ```
-You can also just get an entire node, or nodes by specifying mode `bynode`.
+You can also just get an entire node, or nodes by specifying mode `by_node`.
 This asks for two full nodes (`N` refers to number of nodes when mode is
-`bynode`):
+`by_node`):
 ```yaml
 command: dostuff
 N: 2
-mode: bynode
+mode: by_node
 ```
 To grab 100 cores and only use nodes from groups gen1 and gen2, but not group
 slow
@@ -142,7 +142,7 @@ Remember to quote commands that have spaces/arguments.   For example,
 
 You can specify requirements on the command line using -r/--require.
 
-    wq sub -r "mode: bynode; N: 5" -c some_command
+    wq sub -r "mode: by_node; N: 5" -c some_command
 
 Each requirement is valid YAML. Note, however, that each element is separated
 by a semicolon, which is **not** valid YAML.  Internally the semicolons are
@@ -195,11 +195,11 @@ command: |
 # show this name in job listings instead of the command
 job_name: dostuff35 
 
-# this is the type of node/host selection. bynode means select entire
+# this is the type of node/host selection. by_node means select entire
 # nodes.
-mode: bynode
+mode: by_node
 
-# Since the mode is bynode, this means 5 full nodes
+# Since the mode is by_node, this means 5 full nodes
 N: 5
 
 # Select from this group(s)
