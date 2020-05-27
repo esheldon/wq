@@ -190,26 +190,39 @@ Here is a full, commented example
 
 command: |
     source ~/.bashrc
-    OMP_NUM_THREADS=%threads% mpirun -hostfile %hostfile% ./program
+    echo "hello world"
+    sleep 30
 
 # show this name in job listings instead of the command
-job_name: dostuff35 
+job_name: dostuff
 
 # this is the type of node/host selection. by_node means select entire
 # nodes.
 mode: by_node
 
 # Since the mode is by_node, this means 5 full nodes
-N: 5
+N: 1
 
 # Select from this group(s)
 group: new
 
 # Do not select from this set of groups
-not_group: [slow,crappy]
+not_group: [slow, crappy]
 
 # require at least this many cores
 min_cores: 8
+```
+
+An example with mpi
+```yaml
+command: |
+    source ~/.bashrc
+    OMP_NUM_THREADS=%threads% mpirun -hostfile %hostfile% ./program
+
+# show this name in job listings instead of the command
+job_name: dostuff35 
+
+N: 125
 
 # used by MPI jobs
 hostfile: auto
@@ -224,12 +237,9 @@ threads: 4
 
 ### running an MPI code
 
-
 To run an MPI code, get hostnames through the hostfile requirement, e.g.
 
     wq -r "N:16;hostfile:auto" -c "mpirun -hostfile %hostfile% ./mycode"
-
-
 
 Getting an interactive shell on a worker node
 ---------------------------------------------
