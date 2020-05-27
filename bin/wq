@@ -429,10 +429,10 @@ class Refresher(dict):
 
 class Remover(dict):
     """
-    usage: wq rm pid
+    usage: wq rm pid1 pid2 ....
 
-    Request that the server remove the specified job or jobs; the pid can be a
-    comma separated list.  Use "wq rm all" to remove all of your jobs.
+    Request that the server remove the specified job or jobs. Use "wq rm all"
+    to remove all of your jobs.
     """
 
     def __init__(self, args):
