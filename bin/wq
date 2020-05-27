@@ -204,8 +204,8 @@ class JobLister(dict):
                        'cmd': 'Cmd', 'Tq': 'Tq', 'Trun': 'Trun'}
             )
 
-        for l in sorted(lines, key=lambda x: x['time_sub']):
-            print(fmt % l)
+        for line in sorted(lines, key=lambda x: x['time_sub']):
+            print(fmt % line)
 
         njobs = nrun+nwait
         stats = 'Jobs: %s Running: %s Waiting: %s' % (njobs, nrun, nwait)
