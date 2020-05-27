@@ -127,7 +127,7 @@ Don't forget the space between dash "-" and value. See the Requirements
 sub-section for a full list of requirements
 
 
-### specifying comands as arguments
+### Specifying comands as arguments
 
 In addition to using job files, you can run a command by specifying -c and an
 argument
@@ -181,8 +181,9 @@ is the full list
 * hostfile - An optional file in which to save allocated node names. Useful for MPI jobs using mpirun. If hostfile equals to 'auto' a name will be generated automatically and put in place of %hostfile% in command line
 * threads - An optional argument that controls hosts listed in hostfile for running hybrid jobs. See example below.
 
+### examples
 
-Here is a full, commented example
+Simple one core example
 ```yaml
 # these are the commands to be run.  if you only have a 
 # single command, you can use a single line such as 
@@ -194,14 +195,21 @@ command: |
     sleep 30
 
 # show this name in job listings instead of the command
-job_name: dostuff
+job_name: test
+```
+
+Running on a full node, with machine group selection
+```yaml
+command: |
+    source ~/.bashrc
+    ./multi-core-job
+
+# show this name in job listings instead of the command
+job_name: test
 
 # this is the type of node/host selection. by_node means select entire
 # nodes.
 mode: by_node
-
-# Since the mode is by_node, this means 5 full nodes
-N: 1
 
 # Select from this group(s)
 group: new
@@ -217,12 +225,29 @@ An example with mpi
 ```yaml
 command: |
     source ~/.bashrc
-    OMP_NUM_THREADS=%threads% mpirun -hostfile %hostfile% ./program
+    mpirun -hostfile %hostfile% ./program
 
 # show this name in job listings instead of the command
 job_name: dostuff35 
 
 N: 125
+
+# used by MPI jobs
+hostfile: auto
+```
+
+
+MPI example specifying threads 
+```yaml
+command: |
+    source ~/.bashrc
+    OMP_NUM_THREADS=%threads% mpirun -hostfile %hostfile% ./program
+
+# show this name in job listings instead of the command
+job_name: dostuff35 
+
+mode: bynode
+N: 5
 
 # used by MPI jobs
 hostfile: auto
@@ -234,12 +259,6 @@ hostfile: auto
 
 threads: 4
 ```
-
-### running an MPI code
-
-To run an MPI code, get hostnames through the hostfile requirement, e.g.
-
-    wq -r "N:16;hostfile:auto" -c "mpirun -hostfile %hostfile% ./mycode"
 
 Getting an interactive shell on a worker node
 ---------------------------------------------
