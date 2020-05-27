@@ -1397,8 +1397,8 @@ class JobQueue(object):
         if action == 'clear':
             udata['limits'].clear()
         else:
-            for l, v in limits.items():
-                udata['limits'][l] = v
+            for key, val in limits.items():
+                udata['limits'][key] = val
 
         self.save_users()
         self.response['response'] = 'OK'
