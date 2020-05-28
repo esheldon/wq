@@ -1,3 +1,5 @@
+__version__ = '0.2.0'
+
 from . import server
 
 from .server import DEFAULT_HOST
