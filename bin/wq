@@ -151,6 +151,8 @@ class JobLister(dict):
         lines = []
         timenow = time.time()
         for r in resp['response']:
+            if 'user' not in r:
+                continue
 
             if (self.user is None) or (r['user'] in self.user):
                 if r['status'] == 'run':
