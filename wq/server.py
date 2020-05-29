@@ -179,7 +179,7 @@ class Server(object):
                             client.shutdown(socket.SHUT_RDWR)
                             client.close()
                         except socket.error:
-                            es = sys.exc_info()
+                            es = str(sys.exc_info())
                             if ('Broken pipe' in es[1]
                                     or 'Transport endpoint' in es[1]):
                                 print('caught exception type:', es[0],)
