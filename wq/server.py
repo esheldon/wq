@@ -18,7 +18,7 @@ import os
 import glob
 
 try:
-    import cPickle as pickle
+    import cPickle as pickle  # noqa
 except ImportError:
     import pickle
 
@@ -356,13 +356,13 @@ class Cluster(object):
 def _get_dict_int(d, key, default):
     reason = ''
     try:
-        N = int(d.get(key, default))
+        num = int(d.get(key, default))
     except (ValueError, TypeError) as err:
-        N = None
+        num = None
         reason = "failed to extract int requirement '%s'"
         reason = reason % str(err)
 
-    return N, reason
+    return num, reason
 
 
 def _get_dict_float(d, key, default):
@@ -609,18 +609,18 @@ class Job(dict):
             ulimits = udata['limits']
             if ulimits:
 
-                Njobs_max = ulimits.get('Njobs', -1)
-                if Njobs_max >= 0:
+                njobs_max = ulimits.get('Njobs', -1)
+                if njobs_max >= 0:
                     # this is the actual number of jobs the user has
-                    Njobs = udata.get('Njobs', 0)
-                    if Njobs >= Njobs_max:
+                    njobs = udata.get('Njobs', 0)
+                    if njobs >= njobs_max:
                         return False
 
-                Ncores_max = ulimits.get('Ncores', -1)
-                if Ncores_max >= 0:
+                ncores_max = ulimits.get('Ncores', -1)
+                if ncores_max >= 0:
                     # this is the actual number of cores the user has
-                    Ncores = udata.get('Ncores', 0)
-                    if Ncores >= Ncores_max:
+                    ncores = udata.get('Ncores', 0)
+                    if ncores >= ncores_max:
                         return False
 
         return True
@@ -642,7 +642,7 @@ class Job(dict):
 
         reqs = self['require']
 
-        N, reason = _get_dict_int(reqs, 'N', 1)
+        num, reason = _get_dict_int(reqs, 'N', 1)
         if reason:
             return pmatch, match, hosts, reason
 
@@ -653,12 +653,12 @@ class Job(dict):
         if threads < 1:
             threads = 1
 
-        if N % threads > 0:
+        if num % threads > 0:
             reason = 'Number of requested cores not divisible by threads'
             return pmatch, match, hosts, reason
 
-        print("threads, N", threads, N)
-        Np = N
+        print("threads, num", threads, num)
+        nump = num
 
         min_mem, reason = _get_dict_float(reqs, 'min_mem', 0.0)
         if reason:
@@ -699,10 +699,10 @@ class Job(dict):
             # number of threads requested
             pucores = (nd.ncores//threads)*threads
 
-            if pucores >= Np:
+            if pucores >= nump:
                 pmatch = True
             else:
-                Np -= pucores
+                nump -= pucores
 
             nfree = nd.ncores-nd.used
             nfree = (nfree//threads)*threads
@@ -717,13 +717,13 @@ class Job(dict):
                 if not ok:
                     nfree = 0
 
-            if nfree >= N:
-                hosts += [h]*N
-                N = 0
+            if nfree >= num:
+                hosts += [h]*num
+                num = 0
                 match = True
                 break
             else:
-                N -= nfree
+                num -= nfree
                 hosts += [h]*nfree
 
         if not pmatch:
@@ -751,11 +751,11 @@ class Job(dict):
 
         reqs = self['require']
 
-        N, reason = _get_dict_int(reqs, 'N', 1)
+        num, reason = _get_dict_int(reqs, 'N', 1)
         if reason:
             return pmatch, match, hosts, reason
 
-        Np = N
+        nump = num
 
         min_mem, reason = _get_dict_float(reqs, 'min_mem', 0.0)
 
@@ -791,7 +791,7 @@ class Job(dict):
                 if not ok:
                     continue  # not in the group
 
-            if nd.ncores >= Np:
+            if nd.ncores >= nump:
                 pmatch = True
             else:
                 pass
@@ -808,9 +808,9 @@ class Job(dict):
                 if not ok:
                     nfree = 0
 
-            if nfree >= N:
-                hosts += [h]*N
-                N = 0
+            if nfree >= num:
+                hosts += [h]*num
+                num = 0
                 match = True
                 break
             else:
@@ -835,11 +835,11 @@ class Job(dict):
 
         reqs = self['require']
 
-        N, reason = _get_dict_int(reqs, 'N', 1)
+        num, reason = _get_dict_int(reqs, 'N', 1)
         if reason:
             return pmatch, match, hosts, reason
 
-        Np = N
+        nump = num
 
         min_mem, reason = _get_dict_float(reqs, 'min_mem', 0.0)
         if reason:
@@ -882,8 +882,8 @@ class Job(dict):
                 if not ok:
                     continue  # not in the group
 
-            Np -= 1
-            if Np == 0:
+            nump -= 1
+            if nump == 0:
                 pmatch = True
 
             ok = True
@@ -895,9 +895,9 @@ class Job(dict):
                         break
 
             if nd.used == 0 and ok:
-                N -= 1
+                num -= 1
                 hosts += [h]*nd.ncores
-                if N == 0:
+                if num == 0:
                     match = True
                     break
 
@@ -942,17 +942,17 @@ class Job(dict):
                 reason = "host in blocked group"
                 return pmatch, match, hosts, reason
 
-        N, reason = _get_dict_int(reqs, 'N', 1)
+        num, reason = _get_dict_int(reqs, 'N', 1)
         if reason:
             return pmatch, match, hosts, reason
 
-        if nd.ncores >= N:
+        if nd.ncores >= num:
             pmatch = True
 
         nfree = nd.ncores-nd.used
-        if nfree >= N:
-            hosts += [h]*N
-            N = 0
+        if nfree >= num:
+            hosts += [h]*num
+            num = 0
             match = True
         else:
             reason = "Not enough free cores on "+h
@@ -1155,23 +1155,24 @@ class JobQueue(object):
 
     def _process_command(self, message):
         command = message['command']
-        print(str(datetime.datetime.now()), '  got', command, 'request')
+        date = str(datetime.datetime.now())
+        print("%s got command: '%s'" % (command, date))
 
-        if command in ['sub']:
+        if command == 'sub':
             self._process_submit_request(message)
         elif command == 'get_hosts':
             self._process_get_hosts(message)
-        elif command in ['ls']:
+        elif command == 'ls':
             self._process_listing_request(message)
-        elif command in ['lsfull']:
+        elif command == 'lsfull':
             self._process_full_listing_request(message)
-        elif command in ['stat']:
+        elif command == 'stat':
             self._process_status_request(message)
-        elif command in ['users']:
+        elif command == 'users':
             self._process_userlist_request()
-        elif command in ['limit']:
+        elif command == 'limit':
             self._process_limit_request(message)
-        elif command in ['rm']:
+        elif command == 'rm':
             self._process_remove_request(message)
         elif command == 'notify':
             self._process_notification(message)
@@ -1181,11 +1182,15 @@ class JobQueue(object):
         elif command == 'node':
             self._process_node_request(message)
         else:
-            self.response['error'] = (
+            errmess = (
+                "got command '%s'"
                 "only support 'sub','get_hosts', "
-                "'ls','stat','users','rm','notify','node'"
+                "'ls', 'lsfull', 'stat', 'users', 'rm', 'notify', 'node', "
                 "'refresh' commands"
             )
+            errmess = errmess % command
+
+            self.response['error'] = errmess
 
     def _process_node_request(self, message):
 
