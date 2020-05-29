@@ -1156,7 +1156,7 @@ class JobQueue(object):
     def _process_command(self, message):
         command = message['command']
         date = str(datetime.datetime.now())
-        print("%s got command: '%s'" % (command, date))
+        print("%s got command: '%s'" % (date, command))
 
         if command == 'sub':
             self._process_submit_request(message)
