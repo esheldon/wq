@@ -171,7 +171,7 @@ is the full list
 * host - The host name. When mode is by_host, you must also send this requirement
 * min_cores - Limit to nodes with at least this many cores.  Only applies when mode is *by_node*.
 * min_mem - Limit to nodes with at least this much memory in GB.  Only applies when mode is *by_core*, *by_core1*, *by_node*.
-* X - This determines if ssh X display forwarding is used, default is False. For yes use true,1 for no use false,0
+* X - This determines if ssh X display forwarding is used, default is False. For yes use true or 1 for no use false or 0
 * priority - Currently should be one of 
   * low - lowest priority
   * med - medium priority, the default
@@ -450,4 +450,4 @@ Installation
 
 ### Dependencies
 
-You need a fairly recent python and pyyaml <http://pyyaml.org/>
+You need python 2.7 or later and pyyaml <http://pyyaml.org/>
