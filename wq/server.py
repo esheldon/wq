@@ -1160,7 +1160,7 @@ class JobQueue(object):
 
         if command == 'sub':
             self._process_submit_request(message)
-        elif command == 'get_hosts':
+        elif command in ('get_hosts', 'gethosts'):
             self._process_get_hosts(message)
         elif command == 'ls':
             self._process_listing_request(message)
