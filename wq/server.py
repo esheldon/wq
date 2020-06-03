@@ -524,10 +524,7 @@ class Job(dict):
         if self['status'] == 'ready':
             self['status'] = 'run'
 
-        fname = os.path.join(
-            self.spool_dir,
-            str(self['pid'])+'.'+self['status'],
-        )
+        fname = self.get_spool_fname()
 
         # just remove the old one first we could just rename, but things that
         # were waiting maybe running now
@@ -549,6 +546,15 @@ class Job(dict):
             if os.path.exists(self['spool_fname']):
                 os.remove(self['spool_fname'])
             self['spool_fname'] = None
+
+    def get_spool_fname(self, status=None):
+        if status is None:
+            status = self['status']
+
+        return os.path.join(
+            self.spool_dir,
+            str(self['pid'])+'.'+status,
+        )
 
     def match(self, cluster, blocked_groups):
         if self['status'] == 'nevermatch':
@@ -1144,7 +1150,13 @@ class JobQueue(object):
             self.queue = [j for j in self.queue if j['pid'] not in pids_to_del]
 
     def _unreserve_job_and_decrement_user(self, job):
-        job.unspool()
+        # try both wait and run.  This can be important after a server restart
+        # when a job may have disappeared while it was down
+        for status in ['run', 'wait']:
+            fname = job.get_spool_fname(status=status)
+            if os.path.exists(fname):
+                os.remove(fname)
+        # job.unspool()
         if job['status'] == 'run':
             self.users.decrement_user(job['user'], job['hosts'])
             self.cluster.unreserve(job['hosts'])
