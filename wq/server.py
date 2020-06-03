@@ -6,6 +6,11 @@ The description file is
     hostname ncores mem groups
 
 The groups are optional comma separated list.
+
+TODO
+
+    - move port host max_buffsize etc. to not global variable in PARS
+    - see if catching yaml.YAMLError is good enough
 """
 from __future__ import print_function
 
@@ -16,23 +21,16 @@ import copy
 import sys
 import os
 import glob
-
-try:
-    import cPickle as pickle  # noqa
-except ImportError:
-    import pickle
-
 import datetime
-
 import select
 
-DEFAULT_HOST = ''      # Symbolic name meaning all available interfaces
+HOST = ''      # Symbolic name meaning all available interfaces
 DEFAULT_PORT = 51093   # Arbitrary non-privileged port
-DEFAULT_MAX_BUFFSIZE = 4096
+MAX_BUFFSIZE = 4096
 
 # only listen for this many seconds, then refresh the queue
-DEFAULT_SOCK_TIMEOUT = 30.0
-DEFAULT_WAIT_SLEEP = 10.0
+SOCK_TIMEOUT = 30.0
+WAIT_SLEEP = 10.0
 DEFAULT_SPOOL_DIR = '~/wqspool/'
 
 PRIORITY_LIST = ['block', 'high', 'med', 'low']
@@ -81,26 +79,22 @@ def socket_recieve(conn, buffsize):
 
 
 class Server(object):
-    def __init__(self, cluster_file, **keys):
+    def __init__(self, cluster_file, port, spool_dir):
 
-        # copy the state, in case we screw up somewhere and modify the keys
-        self.keys = copy.deepcopy(keys)
-
+        self.spool_dir = spool_dir
+        self.port = port
         self.cluster_file = cluster_file
 
         # note passing on state of the system.
-        self.queue = JobQueue(cluster_file, **keys)
-        self.buffsize = keys.get('buffsize', DEFAULT_MAX_BUFFSIZE)
-
+        self.queue = JobQueue(
+            cluster_file=cluster_file,
+            spool_dir=spool_dir,
+        )
         self.verbosity = 1
 
     def open_socket(self):
-        host = self.keys.get('host', DEFAULT_HOST)
-        port = self.keys.get('port', DEFAULT_PORT)
-        self.timeout = self.keys.get('timeout', DEFAULT_SOCK_TIMEOUT)
-
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.bind((host, port))
+        self.sock.bind((HOST, self.port))
         self.sock.setblocking(0)
         self.sock.listen(4)
 
@@ -152,7 +146,7 @@ class Server(object):
             try:
 
                 inputready, [], [] = select.select(
-                    input, [], [], self.timeout,
+                    input, [], [], SOCK_TIMEOUT,
                 )
                 if len(inputready) == 0:
                     self.refresh_queue()
@@ -206,7 +200,7 @@ class Server(object):
 
         We should be ready to recieve since we used select()
         """
-        data = socket_recieve(client, self.buffsize)
+        data = socket_recieve(client, MAX_BUFFSIZE)
         if not data:
             return
 
@@ -376,7 +370,7 @@ def _get_dict_float(d, key, default):
     return f, reason
 
 
-class Users:
+class Users(object):
     """
     Simple encapsulation so we can easily serialize
     the users dictionary
@@ -469,13 +463,9 @@ class Users:
 
 
 class Job(dict):
-
-    def __init__(self, message, **keys):
-        # make sure pid,require are in message
-        # and copy them into self
-
-        for k in message:
-            self[k] = message[k]
+    def __init__(self, spool_dir=None, **config):
+        self.spool_dir = spool_dir
+        self.update(config)
 
         if 'require' not in self:
             self['status'] = 'nevermatch'
@@ -492,11 +482,6 @@ class Job(dict):
         else:
             self['status'] = 'wait'
             self['reason'] = ''
-
-        spool_dir = keys.get('spool_dir', DEFAULT_SPOOL_DIR)
-        self.spool_dir = os.path.expanduser(spool_dir)
-
-        self.wait_sleep = keys.get('wait_sleep', DEFAULT_WAIT_SLEEP)
 
         self['priority'] = self['require'].get('priority', 'med')
         if self['priority'] not in PRIORITY_LIST:
@@ -533,14 +518,14 @@ class Job(dict):
         self.unspool()
 
         self['spool_fname'] = fname
-        self['spool_wait'] = self.wait_sleep
+        self['spool_wait'] = WAIT_SLEEP
         if self['status'] in ['ready', 'run']:
             self['time_run'] = time.time()
         else:
             self['time_run'] = None
 
-        with open(fname, 'wb') as fobj:
-            pickle.dump(self, fobj, -1)  # highest protocol
+        with open(fname, 'w') as fobj:
+            yaml.dump(dict(self), fobj)
 
     def unspool(self):
         if (self['spool_fname']):
@@ -1009,11 +994,9 @@ class Job(dict):
 
 
 class JobQueue(object):
-    def __init__(self, cluster_file, **keys):
+    def __init__(self, cluster_file, spool_dir):
 
-        # copy the state, in case we screw up somewhere and modify the keys
-        self.keys = copy.deepcopy(keys)
-
+        self.spool_dir = spool_dir
         self.setup_spool()
 
         print('Loading cluster from:', cluster_file)
@@ -1030,8 +1013,6 @@ class JobQueue(object):
         self.verbosity = 1
 
     def setup_spool(self):
-        spool_dir = self.keys.get('spool_dir', DEFAULT_SPOOL_DIR)
-        self.spool_dir = os.path.expanduser(spool_dir)
         if not os.path.exists(self.spool_dir):
             print('making spool dir:', self.spool_dir)
             os.makedirs(self.spool_dir)
@@ -1053,20 +1034,19 @@ class JobQueue(object):
         print('Loading jobs from:', self.spool_dir)
         pattern = os.path.join(self.spool_dir, '*')
         flist = glob.glob(pattern)
-        for fn in sorted(flist):
-            if fn[-4:] == '.run' or fn[-5:] == '.wait':
-                job = None
-
-                with open(fn, 'rb') as fobj:
+        for fname in sorted(flist):
+            if fname[-4:] == '.run' or fname[-5:] == '.wait':
+                with open(fname) as fobj:
                     try:
-                        job = pickle.load(fobj)
+                        job_config = yaml_load(fobj)
+                        job = Job(spool_dir=self.spool_dir, **job_config)
                     except:
-                        print('could not unpickle job file:', fn)
-                        es = sys.exc_info()
-                        print('caught unpickle exception:',
-                              es[0], 'details:', es[1])
+                        print('could not load job file:', fname)
+                        es = str(sys.exc_info())
+                        print("caught exception: '%s'" % es)
+                        job = None
 
-                if job:
+                if job is not None:
                     if job['status'] == 'run':
                         # here we need to reserve the cluster and increment the
                         # user data
@@ -1270,8 +1250,10 @@ class JobQueue(object):
             return
 
         # pass on the state
-        keys = self.keys
-        newjob = Job(message, **keys)
+        newjob = Job(
+            spool_dir=self.spool_dir,
+            **message
+        )
 
         # no side effects on cluster inside here
         newjob.match(self.cluster, self._blocked_groups())

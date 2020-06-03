@@ -45,9 +45,7 @@ _COMMANDS = ['serve', 'sub', 'ls', 'stat', 'rm', 'refresh']
 # global variables, ick
 # only part is currently changeable through the command line
 PARS = {
-    'host': wq.DEFAULT_HOST,  # Symbolic name meaning all available interfaces
     'port': wq.DEFAULT_PORT,
-    'max_buffsize': wq.DEFAULT_MAX_BUFFSIZE,
 }
 
 
@@ -55,7 +53,7 @@ def yaml_load(obj):
     return yaml.load(obj, Loader=yaml.SafeLoader)
 
 
-class ServerWrapper:
+class ServerWrapper(object):
     """
     usage: wq serve cluster_def_file
 
@@ -76,6 +74,8 @@ class ServerWrapper:
         if spool_dir is None:
             spool_dir = wq.DEFAULT_SPOOL_DIR
 
+        spool_dir = os.path.expanduser(spool_dir)
+
         if len(args) < 1:
             parser.print_help()
             sys.exit(1)
@@ -85,12 +85,14 @@ class ServerWrapper:
             sys.exit(1)
 
         # these keywords get passed all the way down to JobQueue and Job
-        self.srv = wq.server.Server(args[0],
-                                    port=PARS['port'],
-                                    spool_dir=spool_dir)
+        self.server = wq.server.Server(
+            cluster_file=args[0],
+            port=PARS['port'],
+            spool_dir=spool_dir,
+        )
 
     def execute(self):
-        self.srv.run()
+        self.server.run()
 
 
 class JobLister(dict):
@@ -888,7 +890,7 @@ def send_message(message, timeout=None, crash_on_timeout=False):
     if timeout is not None:
         sock.settimeout(timeout)
 
-    conninfo = (PARS['host'], PARS['port'])
+    conninfo = (wq.HOST, PARS['port'])
     socket_connect(sock, conninfo, crash_on_timeout=crash_on_timeout)
 
     rdict = None
@@ -896,7 +898,7 @@ def send_message(message, timeout=None, crash_on_timeout=False):
         jmess = yaml.dump(message)
 
         wq.server.socket_send(sock, jmess)
-        data = wq.server.socket_recieve(sock, PARS['max_buffsize'])
+        data = wq.server.socket_recieve(sock, wq.MAX_BUFFSIZE)
 
         sock.close()
 
