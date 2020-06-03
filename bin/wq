@@ -356,6 +356,12 @@ class Limiter(dict):
         wq limit "Njobs: 10"
         wq limit "Ncores: 120"
         wq limit "Ncores: 120; Njobs: 25"
+
+    To clear your limits
+        wq limit clear
+
+    To see your current limits
+        wq users
     """
 
     def __init__(self, port, args):
