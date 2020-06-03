@@ -6,33 +6,32 @@ The description file is
     hostname ncores mem groups
 
 The groups are optional comma separated list.
-"""
-from __future__ import print_function
 
+TODO
+
+    - move port host max_buffsize etc. to not global variable in PARS
+    - see if catching yaml.YAMLError is good enough
+"""
 import socket
 import yaml
+from yaml import YAMLError
 import time
 import copy
 import sys
 import os
 import glob
-
-try:
-    import cPickle as pickle  # noqa
-except ImportError:
-    import pickle
-
 import datetime
-
 import select
+import logging
 
-DEFAULT_HOST = ''      # Symbolic name meaning all available interfaces
+
+HOST = ''      # Symbolic name meaning all available interfaces
 DEFAULT_PORT = 51093   # Arbitrary non-privileged port
-DEFAULT_MAX_BUFFSIZE = 4096
+MAX_BUFFSIZE = 4096
 
 # only listen for this many seconds, then refresh the queue
-DEFAULT_SOCK_TIMEOUT = 30.0
-DEFAULT_WAIT_SLEEP = 10.0
+SOCK_TIMEOUT = 30.0
+WAIT_SLEEP = 10.0
 DEFAULT_SPOOL_DIR = '~/wqspool/'
 
 PRIORITY_LIST = ['block', 'high', 'med', 'low']
@@ -81,26 +80,28 @@ def socket_recieve(conn, buffsize):
 
 
 class Server(object):
-    def __init__(self, cluster_file, **keys):
+    def __init__(self, cluster_file, port, spool_dir, loglevel='info'):
 
-        # copy the state, in case we screw up somewhere and modify the keys
-        self.keys = copy.deepcopy(keys)
+        self.loglevel = loglevel.upper()
+        logging.basicConfig(stream=sys.stdout)
+        self.logger = logging.getLogger('Server')
+        self.logger.setLevel(getattr(logging, self.loglevel))
 
+        self.spool_dir = spool_dir
+        self.port = port
         self.cluster_file = cluster_file
 
         # note passing on state of the system.
-        self.queue = JobQueue(cluster_file, **keys)
-        self.buffsize = keys.get('buffsize', DEFAULT_MAX_BUFFSIZE)
-
+        self.queue = JobQueue(
+            cluster_file=cluster_file,
+            spool_dir=spool_dir,
+            loglevel=loglevel,
+        )
         self.verbosity = 1
 
     def open_socket(self):
-        host = self.keys.get('host', DEFAULT_HOST)
-        port = self.keys.get('port', DEFAULT_PORT)
-        self.timeout = self.keys.get('timeout', DEFAULT_SOCK_TIMEOUT)
-
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.bind((host, port))
+        self.sock.bind((HOST, self.port))
         self.sock.setblocking(0)
         self.sock.listen(4)
 
@@ -117,16 +118,16 @@ class Server(object):
 
             finally:
                 self.queue.save_users()
-                print('shutdown')
+                self.logger.debug('shutdown')
                 self.sock.shutdown(socket.SHUT_RDWR)
-                print('close')
+                self.logger.debug('close')
                 self.sock.close()
 
             if not do_restart:
-                print('    keyboard interrupt: exiting')
+                self.logger.debug('keyboard interrupt: exiting')
                 break
             else:
-                print('    restarting after 1 minute wait')
+                self.logger.debug('restarting after 1 minute wait')
                 time.sleep(RESTART_DELAY)
 
     def _run(self):
@@ -152,7 +153,7 @@ class Server(object):
             try:
 
                 inputready, [], [] = select.select(
-                    input, [], [], self.timeout,
+                    input, [], [], SOCK_TIMEOUT,
                 )
                 if len(inputready) == 0:
                     self.refresh_queue()
@@ -163,10 +164,11 @@ class Server(object):
                         # the server socket got a client request
                         client, addr = server.accept()
 
-                        print(
-                            str(datetime.datetime.now()),
-                            'Connected by',
-                            addr,
+                        self.logger.debug(
+                            "%s Connected by %s" % (
+                                str(datetime.datetime.now()),
+                                addr,
+                            )
                         )
 
                         # it goes in the queue
@@ -180,23 +182,22 @@ class Server(object):
                             client.close()
                         except socket.error:
                             es = str(sys.exc_info())
-                            if ('Broken pipe' in es[1]
-                                    or 'Transport endpoint' in es[1]):
-                                print('caught exception type:', es[0],)
-                                print('details:', es[1])
-                                print('ignoring')
+                            if ('Broken pipe' in es
+                                    or 'Transport endpoint' in es):
+                                self.logger.info("caught exception '%s'" % es)
+                                self.logger.info('ignoring')
                         finally:
                             # whatever happens we can't talk to this client any
                             # more
                             input.remove(client)
 
             except socket.error as e:
-                es = sys.exc_info()
-                if 'Broken pipe' in es[1]:
+                es = str(sys.exc_info())
+                if 'Broken pipe' in es:
                     # this happens sometimes when someone ctrl-c in the middle
                     # of talking with the server
-                    print('caught exception type:', es[0], 'details:', es[1])
-                    print('ignoring Broken pipe exception')
+                    self.logger.info("caught exception '%s'" % es)
+                    self.logger.info('ignoring Broken pipe exception')
                 else:
                     raise e
 
@@ -206,18 +207,30 @@ class Server(object):
 
         We should be ready to recieve since we used select()
         """
-        data = socket_recieve(client, self.buffsize)
+        data = socket_recieve(client, MAX_BUFFSIZE)
         if not data:
             return
 
-        print(str(datetime.datetime.now()), 'processing client request')
-        if self.verbosity > 1:
-            print(data)
+        self.logger.debug(
+            '%s %s' % (
+                str(datetime.datetime.now()),
+                'processing client request'
+            )
+        )
+
+        if self.loglevel == 'DEBUG':
+            self.logger.debug(str(data))
+
         try:
             message = yaml_load(data)
-        except:
+        except YAMLError as err:
             # too many types of errors can occur
-            ret = {"error": "could not process YAML request: '%s'" % data}
+            ret = {
+                "error": (
+                    "Got error '%s' processing "
+                    "YAML request: '%s'" % (str(err), data)
+                )
+            }
             ret = yaml.dump(ret)
             socket_send(client, ret)
             return
@@ -227,16 +240,17 @@ class Server(object):
 
         try:
             yaml_response = yaml.dump(response)
-        except:
-            # too many types of errors can occur
+        except YAMLError as err:
             errmess = (
-                "server error creating YAML response; keyboard interrupt?"
+                "Server error processing YAML response: '%s'; "
+                "keyboard interrupt?" % str(err)
             )
             err = {"error": errmess}
             yaml_response = yaml.dump(err)
 
-        if self.verbosity > 2:
-            print('response:', yaml_response)
+        if self.loglevel == 'DEBUG':
+            self.logger.debug("response: '%s'" % str(yaml_response))
+
         socket_send(client, yaml_response)
 
     def wait_for_connection(self):
@@ -247,19 +261,21 @@ class Server(object):
         while True:
             try:
                 conn, addr = self.sock.accept()
-                print('Connected by', addr)
+                self.logger.debug("Connected by %s" % addr)
                 return conn, addr
             except socket.timeout:
                 # we just reached the timeout, refresh the queue
-                print('refreshing queue')
+                self.logger.debug('refreshing queue')
                 self.queue.refresh()
-                if self.verbosity > 1:
+                if self.loglevel == 'DEBUG':
                     print_stat(self.queue.cluster.status())
 
     def refresh_queue(self):
-        print(str(datetime.datetime.now()), 'refreshing queue')
+        self.logger.debug(
+            '%s refreshing queue' % str(datetime.datetime.now())
+        )
         self.queue.refresh()
-        if self.verbosity > 1:
+        if self.loglevel == 'DEBUG':
             print_stat(self.queue.cluster.status())
 
     def cleanup_failed_sockets(self, inputs, server):
@@ -292,15 +308,14 @@ class Node(object):
 
     def reserve(self):
         self.used += 1
-        if self.used > self.ncores:
-            print('Internal error.')
-            sys.exit(1)
+        assert self.used <= self.ncores, (
+            "git used cores %d > available "
+            "cores %d" % (self.used, self.ncores)
+        )
 
     def unreserve(self):
         self.used -= 1
-        if (self.used < 0):
-            print('Internal error.')
-            sys.exit(1)
+        assert self.used >= 0, "got used cores %d < 0" % self.used
 
 
 class Cluster(object):
@@ -376,14 +391,13 @@ def _get_dict_float(d, key, default):
     return f, reason
 
 
-class Users:
+class Users(object):
     """
     Simple encapsulation so we can easily serialize
     the users dictionary
     """
     def __init__(self):
         self.users = {}
-        self.verbosity = 1
 
     def __contains__(self, user):
         return user in self.users
@@ -394,7 +408,6 @@ class Users:
         """
         if os.path.exists(fname):
 
-            print('Loading user info from:', fname)
             with open(fname) as fobj:
                 data = yaml_load(fobj)
 
@@ -469,13 +482,9 @@ class Users:
 
 
 class Job(dict):
-
-    def __init__(self, message, **keys):
-        # make sure pid,require are in message
-        # and copy them into self
-
-        for k in message:
-            self[k] = message[k]
+    def __init__(self, spool_dir=None, **config):
+        self.spool_dir = spool_dir
+        self.update(config)
 
         if 'require' not in self:
             self['status'] = 'nevermatch'
@@ -493,11 +502,6 @@ class Job(dict):
             self['status'] = 'wait'
             self['reason'] = ''
 
-        spool_dir = keys.get('spool_dir', DEFAULT_SPOOL_DIR)
-        self.spool_dir = os.path.expanduser(spool_dir)
-
-        self.wait_sleep = keys.get('wait_sleep', DEFAULT_WAIT_SLEEP)
-
         self['priority'] = self['require'].get('priority', 'med')
         if self['priority'] not in PRIORITY_LIST:
             self['status'] = 'nevermatch'
@@ -507,8 +511,6 @@ class Job(dict):
 
         self['time_sub'] = time.time()
         self['spool_fname'] = None
-
-        self.verbosity = 1
 
     def _normalize_require(self):
         """
@@ -522,10 +524,7 @@ class Job(dict):
         if self['status'] == 'ready':
             self['status'] = 'run'
 
-        fname = os.path.join(
-            self.spool_dir,
-            str(self['pid'])+'.'+self['status'],
-        )
+        fname = self.get_spool_fname()
 
         # just remove the old one first we could just rename, but things that
         # were waiting maybe running now
@@ -533,20 +532,29 @@ class Job(dict):
         self.unspool()
 
         self['spool_fname'] = fname
-        self['spool_wait'] = self.wait_sleep
+        self['spool_wait'] = WAIT_SLEEP
         if self['status'] in ['ready', 'run']:
             self['time_run'] = time.time()
         else:
             self['time_run'] = None
 
-        with open(fname, 'wb') as fobj:
-            pickle.dump(self, fobj, -1)  # highest protocol
+        with open(fname, 'w') as fobj:
+            yaml.dump(dict(self), fobj)
 
     def unspool(self):
-        if (self['spool_fname']):
+        if self['spool_fname'] is not None:
             if os.path.exists(self['spool_fname']):
                 os.remove(self['spool_fname'])
             self['spool_fname'] = None
+
+    def get_spool_fname(self, status=None):
+        if status is None:
+            status = self['status']
+
+        return os.path.join(
+            self.spool_dir,
+            str(self['pid'])+'.'+status,
+        )
 
     def match(self, cluster, blocked_groups):
         if self['status'] == 'nevermatch':
@@ -657,7 +665,6 @@ class Job(dict):
             reason = 'Number of requested cores not divisible by threads'
             return pmatch, match, hosts, reason
 
-        print("threads, num", threads, num)
         nump = num
 
         min_mem, reason = _get_dict_float(reqs, 'min_mem', 0.0)
@@ -735,9 +742,6 @@ class Job(dict):
             else:
                 reason = 'Not enough free cores.'
 
-        if self.verbosity > 1:
-            print(pmatch, match, hosts, reason)
-
         return pmatch, match, hosts, reason
 
     def _match_by_core1(self, cluster, bgroups):
@@ -765,9 +769,9 @@ class Job(dict):
         block_flag = False
         for h in sorted(cluster.nodes):
             nd = cluster.nodes[h]
-            if(not nd.online):
+            if not nd.online:
                 continue
-            if (nd.mem < min_mem):
+            if nd.mem < min_mem:
                 continue
 
             # is this node actually what we want
@@ -1009,31 +1013,32 @@ class Job(dict):
 
 
 class JobQueue(object):
-    def __init__(self, cluster_file, **keys):
+    def __init__(self, cluster_file, spool_dir, loglevel='info'):
 
-        # copy the state, in case we screw up somewhere and modify the keys
-        self.keys = copy.deepcopy(keys)
+        self.loglevel = loglevel.upper()
+        logging.basicConfig(stream=sys.stdout)
+        self.logger = logging.getLogger('Server')
+        self.logger.setLevel(getattr(logging, self.loglevel))
 
+        self.spool_dir = spool_dir
         self.setup_spool()
 
-        print('Loading cluster from:', cluster_file)
+        self.logger.info('Loading cluster from: %s' % cluster_file)
         self.cluster = Cluster(cluster_file)
         self.queue = []
 
         self.load_users()
         self.load_spool()
 
+        # always print these on startup
         print_users(self.users.asdict())
-
         print_stat(self.cluster.status())
 
         self.verbosity = 1
 
     def setup_spool(self):
-        spool_dir = self.keys.get('spool_dir', DEFAULT_SPOOL_DIR)
-        self.spool_dir = os.path.expanduser(spool_dir)
         if not os.path.exists(self.spool_dir):
-            print('making spool dir:', self.spool_dir)
+            self.logger.info('making spool dir:', self.spool_dir)
             os.makedirs(self.spool_dir)
 
     def users_file(self):
@@ -1042,31 +1047,30 @@ class JobQueue(object):
     def load_users(self):
         self.users = Users()
         fname = self.users_file()
+        self.logger.info('Loading user info from: %s' % fname)
         self.users.fromfile(fname)
 
     def save_users(self):
         fname = self.users_file()
-        print('saving users to:', fname)
+        self.logger.debug('saving users to: %s' % fname)
         self.users.tofile(fname)
 
     def load_spool(self):
-        print('Loading jobs from:', self.spool_dir)
+        self.logger.info('Loading jobs from: %s' % self.spool_dir)
         pattern = os.path.join(self.spool_dir, '*')
         flist = glob.glob(pattern)
-        for fn in sorted(flist):
-            if fn[-4:] == '.run' or fn[-5:] == '.wait':
-                job = None
-
-                with open(fn, 'rb') as fobj:
+        for fname in sorted(flist):
+            if fname[-4:] == '.run' or fname[-5:] == '.wait':
+                with open(fname) as fobj:
                     try:
-                        job = pickle.load(fobj)
-                    except:
-                        print('could not unpickle job file:', fn)
-                        es = sys.exc_info()
-                        print('caught unpickle exception:',
-                              es[0], 'details:', es[1])
+                        job_config = yaml_load(fobj)
+                        job = Job(spool_dir=self.spool_dir, **job_config)
+                    except YAMLError as err:
+                        self.logger.info('could not load job file: %s' % fname)
+                        self.logger.info("caught exception: '%s'" % str(err))
+                        job = None
 
-                if job:
+                if job is not None:
                     if job['status'] == 'run':
                         # here we need to reserve the cluster and increment the
                         # user data
@@ -1109,7 +1113,9 @@ class JobQueue(object):
                 # job was told to run.
                 # see if the pid is still running, if not remove the job
                 if not self._pid_exists(job['pid']):
-                    print('removing job %s, pid no longer valid' % job['pid'])
+                    self.logger.debug(
+                        "removing job %s, pid no longer valid" % job['pid']
+                    )
                     pids_to_del.append(job['pid'])
 
                     self._unreserve_job_and_decrement_user(job)
@@ -1122,7 +1128,7 @@ class JobQueue(object):
                         # see if we can now run the job.  After all blocked
                         # jobs have been scheduled (or not) we updaate the list
                         # of blocked groups (it can't change later)
-                        if (priority != 'block') and (not have_blocked_groups):
+                        if priority != 'block' and not have_blocked_groups:
                             blocked_groups = self._blocked_groups()
                             have_blocked_groups = True
 
@@ -1144,7 +1150,13 @@ class JobQueue(object):
             self.queue = [j for j in self.queue if j['pid'] not in pids_to_del]
 
     def _unreserve_job_and_decrement_user(self, job):
-        job.unspool()
+        # try both wait and run.  This can be important after a server restart
+        # when a job may have disappeared while it was down
+        for status in ['run', 'wait']:
+            fname = job.get_spool_fname(status=status)
+            if os.path.exists(fname):
+                os.remove(fname)
+        # job.unspool()
         if job['status'] == 'run':
             self.users.decrement_user(job['user'], job['hosts'])
             self.cluster.unreserve(job['hosts'])
@@ -1156,7 +1168,7 @@ class JobQueue(object):
     def _process_command(self, message):
         command = message['command']
         date = str(datetime.datetime.now())
-        print("%s got command: '%s'" % (date, command))
+        self.logger.debug("%s got command: '%s'" % (date, command))
 
         if command == 'sub':
             self._process_submit_request(message)
@@ -1218,7 +1230,7 @@ class JobQueue(object):
                 self.response['response'] = 'OK'
                 break
 
-        if (not found):
+        if not found:
             self.response['error'] = ("Host not found.")
 
         return None
@@ -1270,8 +1282,10 @@ class JobQueue(object):
             return
 
         # pass on the state
-        keys = self.keys
-        newjob = Job(message, **keys)
+        newjob = Job(
+            spool_dir=self.spool_dir,
+            **message
+        )
 
         # no side effects on cluster inside here
         newjob.match(self.cluster, self._blocked_groups())
@@ -1401,8 +1415,7 @@ class JobQueue(object):
             self.response['error'] = "action should be 'clear'or 'set'"
             return
 
-        if self.verbosity > 1:
-            print('limits sent:', limits)
+        self.logger.debug('limits sent: %s' % limits)
 
         # we have a reference here, might want to hide this
         udata = self.users.get(user)
@@ -1440,9 +1453,9 @@ class JobQueue(object):
             for job in self.queue:
                 if job['pid'] == pid:
                     # we don't actually remove anything, refresh will do it.
-                    if (job['user'] != user and user != 'root'):
+                    if job['user'] != user and user != 'root':
                         self.response['error'] = (
-                                'PID belongs to user '+job['user']
+                            'PID belongs to user '+job['user']
                         )
                         return
 
@@ -1517,7 +1530,7 @@ def print_stat(status):
     """
     input status is the result of cluster.status
     """
-    print
+    print()
     nodes = status['nodes']
     lines = []
     lens = {}
