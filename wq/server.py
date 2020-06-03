@@ -268,7 +268,7 @@ class Server(object):
                 self.logger.debug('refreshing queue')
                 self.queue.refresh()
                 if self.loglevel == 'DEBUG':
-                    print_stat(self.logger, self.queue.cluster.status())
+                    print_stat(self.queue.cluster.status())
 
     def refresh_queue(self):
         self.logger.debug(
@@ -276,7 +276,7 @@ class Server(object):
         )
         self.queue.refresh()
         if self.loglevel == 'DEBUG':
-            print_stat(self.logger, self.queue.cluster.status())
+            print_stat(self.queue.cluster.status())
 
     def cleanup_failed_sockets(self, inputs, server):
         for sock in inputs:
@@ -1024,10 +1024,9 @@ class JobQueue(object):
         self.load_users()
         self.load_spool()
 
-        print_users(self.logger, self.users.asdict())
-
-        if self.loglevel == 'DEBUG':
-            print_stat(self.logger, self.cluster.status())
+        # always print these on startup
+        print_users(self.users.asdict())
+        print_stat(self.cluster.status())
 
         self.verbosity = 1
 
@@ -1515,11 +1514,11 @@ class JobQueue(object):
             return False
 
 
-def print_stat(logger, status):
+def print_stat(status):
     """
     input status is the result of cluster.status
     """
-    logger.debug('')
+    print()
     nodes = status['nodes']
     lines = []
     lens = {}
@@ -1557,15 +1556,15 @@ def print_stat(logger, status):
     hdr = {}
     for k in lens:
         hdr[k] = k.capitalize()
-    logger.debug(fmt % hdr)
+    print(fmt % hdr)
     for line in lines:
-        logger.debug(fmt % line)
+        print(fmt % line)
 
     if tot_active_cores > 0:
         perc = 100.*status['used']/tot_active_cores
     else:
         perc = 00.00
-    logger.debug('')
+    print()
     mess = ' Used/avail/active cores: %i/%i/%i (%3.1f%% load, %i are offline)'
     mess = mess % (
         status['used'],
@@ -1575,10 +1574,10 @@ def print_stat(logger, status):
         status['ncores']-tot_active_cores,
     )
 
-    logger.debug(mess)
+    print(mess)
 
 
-def print_users(logger, users):
+def print_users(users):
     """
     input should be a dict.  You an convert a Users instance
     using asdict()
@@ -1612,6 +1611,6 @@ def print_users(logger, users):
     hdr = {}
     for k in lens:
         hdr[k] = k.capitalize()
-    logger.info(fmt % hdr)
+    print(fmt % hdr)
     for uname in sorted(udata):
-        logger.info(fmt % udata[uname])
+        print(fmt % udata[uname])
