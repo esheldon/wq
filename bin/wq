@@ -42,12 +42,6 @@ from optparse import OptionParser
 # need to move this into server.py and require a real installation
 _COMMANDS = ['serve', 'sub', 'ls', 'stat', 'rm', 'refresh']
 
-# global variables, ick
-# only part is currently changeable through the command line
-PARS = {
-    'port': wq.DEFAULT_PORT,
-}
-
 
 def yaml_load(obj):
     return yaml.load(obj, Loader=yaml.SafeLoader)
@@ -63,7 +57,7 @@ class ServerWrapper(object):
 
     The groups are an optional comma separate list.
     """
-    def __init__(self, args, **keys):
+    def __init__(self, port, args):
         import wq
         parser = OptionParser(ServerWrapper.__doc__)
         parser.add_option("-s", "--spool-dir", default=None,
@@ -87,7 +81,7 @@ class ServerWrapper(object):
         # these keywords get passed all the way down to JobQueue and Job
         self.server = wq.server.Server(
             cluster_file=args[0],
-            port=PARS['port'],
+            port=port,
             spool_dir=spool_dir,
         )
 
@@ -108,7 +102,8 @@ class JobLister(dict):
     listing.
     """
 
-    def __init__(self, args):
+    def __init__(self, port, args):
+        self.port = port
         self._process_args(args)
 
     def _process_args(self, args):
@@ -129,7 +124,7 @@ class JobLister(dict):
     def execute(self):
         message = {}
         message['command'] = 'ls'
-        resp = send_message(message)
+        resp = send_message(self.port, message)
 
         if self.full:
             if self.user is not None:
@@ -306,7 +301,8 @@ class Stats(dict):
     print the status of the queue and compute cluster
     """
 
-    def __init__(self, args):
+    def __init__(self, port, args):
+        self.port = port
         parser = OptionParser(Stats.__doc__)
         options, args = parser.parse_args(args)
 
@@ -314,7 +310,7 @@ class Stats(dict):
         message = {}
         message['command'] = 'stat'
 
-        resp = send_message(message)
+        resp = send_message(self.port, message)
 
         status = resp['response']
 
@@ -328,7 +324,8 @@ class UsersLister(dict):
     print user info for the system
     """
 
-    def __init__(self, args):
+    def __init__(self, port, args):
+        self.port = port
         parser = OptionParser(Stats.__doc__)
         options, args = parser.parse_args(args)
 
@@ -336,7 +333,7 @@ class UsersLister(dict):
         message = {}
         message['command'] = 'users'
 
-        resp = send_message(message)
+        resp = send_message(self.port, message)
 
         users = resp['response']
 
@@ -356,7 +353,8 @@ class Limiter(dict):
         wq limit "Ncores: 120; Njobs: 25"
     """
 
-    def __init__(self, args):
+    def __init__(self, port, args):
+        self.port = port
         parser = OptionParser(Limiter.__doc__)
         options, args = parser.parse_args(args)
 
@@ -381,7 +379,7 @@ class Limiter(dict):
         message['user'] = os.environ['USER']
         message['limits'] = self.limits
 
-        resp = send_message(message)
+        resp = send_message(self.port, message)
 
         print(resp['response'], file=stderr)
 
@@ -393,7 +391,8 @@ class NodeCommand(dict):
     set a node from offline to online or vice versa
     """
 
-    def __init__(self, args):
+    def __init__(self, port, args):
+        self.port = port
         parser = OptionParser(NodeCommand.__doc__)
         options, args = parser.parse_args(args)
 
@@ -409,7 +408,7 @@ class NodeCommand(dict):
         message['user'] = os.environ['USER']
         message['node'] = self.node
         message['yamline'] = self.yamline
-        resp = send_message(message)
+        resp = send_message(self.port, message)
         print(resp['response'], file=stderr)
 
 
@@ -420,7 +419,8 @@ class Refresher(dict):
     Request that the server refresh it's job list
     """
 
-    def __init__(self, args):
+    def __init__(self, port, args):
+        self.port = port
         parser = OptionParser(Refresher.__doc__)
         options, args = parser.parse_args(args)
 
@@ -428,7 +428,7 @@ class Refresher(dict):
         message = {}
         message['command'] = 'refresh'
 
-        send_message(message)
+        send_message(self.port, message)
 
 
 class Remover(dict):
@@ -439,7 +439,8 @@ class Remover(dict):
     to remove all of your jobs.
     """
 
-    def __init__(self, args):
+    def __init__(self, port, args):
+        self.port = port
         parser = OptionParser(Remover.__doc__)
         options, args = parser.parse_args(args)
 
@@ -463,7 +464,7 @@ class Remover(dict):
         message['pid'] = pid
         message['user'] = os.environ['USER']
 
-        resp = send_message(message)
+        resp = send_message(self.port, message)
 
         if resp['response'] == 'OK':
             if 'pids_to_kill' not in resp:
@@ -492,7 +493,7 @@ class Remover(dict):
             # Now refresh to remove it from queue
             message = {}
             message['command'] = 'refresh'
-            resp = send_message(message)
+            resp = send_message(self.port, message)
 
         else:
             print("Cannot remove, reason=", resp['error'], file=stderr)
@@ -558,7 +559,8 @@ class Submitter(dict):
           method for non-interactive jobs.
 
     """
-    def __init__(self, args):
+    def __init__(self, port, args):
+        self.port = port
         self._process_args(args)
 
     def _process_args(self, args):
@@ -621,7 +623,7 @@ class Submitter(dict):
         """
 
         print('submitting', job_file, file=stderr)
-        port = str(PARS['port'])
+        port = str(self.port)
 
         req = ''
         if self['require_opt'] is not None:
@@ -682,15 +684,15 @@ class Submitter(dict):
 
         self.message['command'] = 'notify'
         self.message['notification'] = 'done'
-        sres = send_message(self.message)
+        sres = send_message(self.port, self.message)
         self.print_res(sres)
         exit(0)
 
     def make_command_list(self, target_machine, command, require):
         # full command, we first change directory to CWD
         pwd = os.getcwd()
-        if 'precmd' in self.rcfile:
-            full_command = self.rcfile['precmd']+" ; "
+        if 'precmd' in self.rcdata:
+            full_command = self.rcdata['precmd']+" ; "
         else:
             full_command = ""
         full_command += 'cd '+pwd+'; '+command
@@ -780,7 +782,7 @@ class Submitter(dict):
         message['require'] = self['require']
         message['commandline'] = self['commandline']
 
-        sres = send_message(message)
+        sres = send_message(self.port, message)
 
         if sres['response'] == 'wait':
             # wait until we can go
@@ -797,7 +799,7 @@ class Submitter(dict):
                     pass
 
             message['command'] = 'get_hosts'
-            sres = send_message(message)
+            sres = send_message(self.port, message)
 
         # save final message for potential kill
         self.message = message
@@ -851,7 +853,7 @@ class Submitter(dict):
 
         # we want to die if the notification fails so the server will see
         # the missing pid
-        sres = send_message(self.message)
+        sres = send_message(self.port, self.message)
         if sres['response'] != 'OK':
             print('Bad response from server:')
             self.print_res(sres)
@@ -880,7 +882,7 @@ def socket_connect(sock, conninfo, crash_on_timeout=False):
                 pass
 
 
-def send_message(message, timeout=None, crash_on_timeout=False):
+def send_message(port, message, timeout=None, crash_on_timeout=False):
 
     if len(message) == 0:
         raise ValueError("message must have len > 0")
@@ -890,7 +892,7 @@ def send_message(message, timeout=None, crash_on_timeout=False):
     if timeout is not None:
         sock.settimeout(timeout)
 
-    conninfo = (wq.HOST, PARS['port'])
+    conninfo = (wq.HOST, port)
     socket_connect(sock, conninfo, crash_on_timeout=crash_on_timeout)
 
     rdict = None
@@ -926,27 +928,29 @@ def send_message(message, timeout=None, crash_on_timeout=False):
     return rdict
 
 
-def get_command_obj(args, **keys):
+def get_command_obj(port, args):
     if args[0] == 'sub':
-        return Submitter(args[1:])
+        command_class = Submitter
     elif args[0] == 'ls':
-        return JobLister(args[1:])
+        command_class = JobLister
     elif args[0] == 'stat':
-        return Stats(args[1:])
+        command_class = Stats
     elif args[0] == 'users':
-        return UsersLister(args[1:])
+        command_class = UsersLister
     elif args[0] == 'limit':
-        return Limiter(args[1:])
+        command_class = Limiter
     elif args[0] == 'rm':
-        return Remover(args[1:])
+        command_class = Remover
     elif args[0] == 'refresh':
-        return Refresher(args[1:])
+        command_class = Refresher
     elif args[0] == 'serve':
-        return ServerWrapper(args[1:], **keys)
+        command_class = ServerWrapper
     elif args[0] == 'node':
-        return NodeCommand(args[1:])
+        command_class = NodeCommand
     else:
         return None
+
+    return command_class(port, args[1:])
 
 
 def preprocess_args(args, parser):
@@ -957,7 +961,6 @@ def preprocess_args(args, parser):
     can't use optparse for that.
     """
 
-    keys = {}
     if len(args) == 0:
         parser.print_help()
         sys.exit(1)
@@ -968,23 +971,34 @@ def preprocess_args(args, parser):
 
     try:
         ind = args.index('-p')
+    except ValueError:
+        ind = None
+
+    if ind is not None:
         try:
-            # update our global var here. The client and
-            # server would both use this
-            PARS['port'] = int(args[ind+1])
-        except:
-            print('Could not get port from input: %s' % args, file=stderr)
-            sys.exit(1)
-        del args[ind:ind+2]
-    except:
-        pass
+            port = int(args[ind+1])
+            del args[ind:ind+2]
+        except ValueError:
+            raise ValueError("bad integer port value: '%s'" % args[ind+1])
+    else:
+        port = wq.DEFAULT_PORT
 
     # now we can get the actual command, if it exists
     if len(args) == 0:
         parser.print_help()
         sys.exit(1)
 
-    return args, keys
+    return port, args
+
+
+def load_rcfile():
+    fname = os.environ['HOME']+'/.wqrc'
+    if os.path.exists(fname):
+        rcdata = yaml_load(open(os.environ['HOME']+'/.wqrc'))
+    else:
+        rcdata = {}
+
+    return rcdata
 
 
 def main():
@@ -992,23 +1006,19 @@ def main():
     parser = OptionParser(__doc__)
 
     # this won't be used in the usual way
-    parser.add_option("-p", "--port", default=None, help="port for socket")
+    parser.add_option("-p", "--port", help="port for socket")
 
-    args, keys = preprocess_args(sys.argv[1:], parser)
+    port, args = preprocess_args(sys.argv[1:], parser)
 
-    cmd_obj = get_command_obj(args, **keys)
+    cmd_obj = get_command_obj(port, args)
 
     if cmd_obj is None:
         parser.print_help()
         sys.exit(1)
 
-    # read the rc file
-    try:
-        rcfile = yaml_load(open(os.environ['HOME']+'/.wqrc'))
-    except IOError:
-        rcfile = {}
-
-    cmd_obj.rcfile = rcfile
+    # wq configuration
+    rcdata = load_rcfile()
+    cmd_obj.rcdata = rcdata
 
     try:
         cmd_obj.execute()
@@ -1017,9 +1027,8 @@ def main():
     except IOError:
         # this is most certainly a "broken pipe" type error when someone pipes
         # to head or something
-        es = sys.exc_info()
-        if 'Broken pipe' not in str(es[1]):
-            print('caught exception type: %s  details: %s\n' % (es[0], es[1]))
+        es = str(sys.exc_info())
+        if 'Broken pipe' not in es:
             raise
     except:
         print('Unexpected error: ', sys.exc_info()[0], file=stderr)

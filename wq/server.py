@@ -174,10 +174,9 @@ class Server(object):
                             client.close()
                         except socket.error:
                             es = str(sys.exc_info())
-                            if ('Broken pipe' in es[1]
-                                    or 'Transport endpoint' in es[1]):
-                                print('caught exception type:', es[0],)
-                                print('details:', es[1])
+                            if ('Broken pipe' in es
+                                    or 'Transport endpoint' in es):
+                                print("caught exception '%s'" % es)
                                 print('ignoring')
                         finally:
                             # whatever happens we can't talk to this client any
@@ -185,11 +184,11 @@ class Server(object):
                             input.remove(client)
 
             except socket.error as e:
-                es = sys.exc_info()
-                if 'Broken pipe' in es[1]:
+                es = str(sys.exc_info())
+                if 'Broken pipe' in es:
                     # this happens sometimes when someone ctrl-c in the middle
                     # of talking with the server
-                    print('caught exception type:', es[0], 'details:', es[1])
+                    print("caught exception '%s'" % es)
                     print('ignoring Broken pipe exception')
                 else:
                     raise e
