@@ -64,6 +64,8 @@ class ServerWrapper(object):
         parser = OptionParser(ServerWrapper.__doc__)
         parser.add_option("-s", "--spool-dir", default=None,
                           help="use the specified spool dir")
+        parser.add_option("--loglevel", default='info',
+                          help="logging level")
 
         options, args = parser.parse_args(args)
         spool_dir = options.spool_dir
@@ -85,6 +87,7 @@ class ServerWrapper(object):
             cluster_file=args[0],
             port=port,
             spool_dir=spool_dir,
+            loglevel=options.loglevel,
         )
 
     def execute(self):
@@ -153,7 +156,7 @@ class JobLister(dict):
             if 'user' not in r:
                 continue
 
-            if (self.user is None) or (r['user'] in self.user):
+            if self.user is None or r['user'] in self.user:
                 if r['status'] == 'run':
                     nrun += 1
                 else:
@@ -470,9 +473,9 @@ class Remover(dict):
 
         if resp['response'] == 'OK':
             if 'pids_to_kill' not in resp:
-                print("Internal error, server shuold "
-                      "return pids_to_kill.", file=stderr)
-                sys.exit(1)
+                raise RuntimeError(
+                    "server did not return pids_to_kill."
+                )
 
             # this is always a list, for when we do "wq rm all"
             pids_to_kill = resp['pids_to_kill']
@@ -487,8 +490,8 @@ class Remover(dict):
                     time.sleep(0.1)
                     cc += 1
 
-                if (self._pid_exists(pidtokill)):
-                    # bastard wouldn't die
+                if self._pid_exists(pidtokill):
+                    # SIGTERM did not work, try stronger SIGKILL
                     os.kill(pidtokill, signal.SIGKILL)
                     time.sleep(1)
 
@@ -688,7 +691,7 @@ class Submitter(dict):
         self.message['notification'] = 'done'
         sres = send_message(self.port, self.message)
         self.print_res(sres)
-        exit(0)
+        sys.exit(0)
 
     def make_command_list(self, target_machine, command, require):
         # full command, we first change directory to CWD
@@ -751,7 +754,7 @@ class Submitter(dict):
                 nhostlist = []
                 for h in dct:
                     n = dct[h]
-                    if (n % th != 0):
+                    if n % th != 0:
                         print('Host', h, 'has',
                               n % th, 'dangling cores. Ignoring.')
 

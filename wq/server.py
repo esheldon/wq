@@ -12,8 +12,6 @@ TODO
     - move port host max_buffsize etc. to not global variable in PARS
     - see if catching yaml.YAMLError is good enough
 """
-from __future__ import print_function
-
 import socket
 import yaml
 from yaml import YAMLError
@@ -24,6 +22,8 @@ import os
 import glob
 import datetime
 import select
+import logging
+
 
 HOST = ''      # Symbolic name meaning all available interfaces
 DEFAULT_PORT = 51093   # Arbitrary non-privileged port
@@ -80,7 +80,12 @@ def socket_recieve(conn, buffsize):
 
 
 class Server(object):
-    def __init__(self, cluster_file, port, spool_dir):
+    def __init__(self, cluster_file, port, spool_dir, loglevel='info'):
+
+        self.loglevel = loglevel.upper()
+        logging.basicConfig(stream=sys.stdout)
+        self.logger = logging.getLogger('Server')
+        self.logger.setLevel(getattr(logging, self.loglevel))
 
         self.spool_dir = spool_dir
         self.port = port
@@ -90,6 +95,7 @@ class Server(object):
         self.queue = JobQueue(
             cluster_file=cluster_file,
             spool_dir=spool_dir,
+            loglevel=loglevel,
         )
         self.verbosity = 1
 
@@ -112,16 +118,16 @@ class Server(object):
 
             finally:
                 self.queue.save_users()
-                print('shutdown')
+                self.logger.debug('shutdown')
                 self.sock.shutdown(socket.SHUT_RDWR)
-                print('close')
+                self.logger.debug('close')
                 self.sock.close()
 
             if not do_restart:
-                print('    keyboard interrupt: exiting')
+                self.logger.debug('keyboard interrupt: exiting')
                 break
             else:
-                print('    restarting after 1 minute wait')
+                self.logger.debug('restarting after 1 minute wait')
                 time.sleep(RESTART_DELAY)
 
     def _run(self):
@@ -158,10 +164,11 @@ class Server(object):
                         # the server socket got a client request
                         client, addr = server.accept()
 
-                        print(
-                            str(datetime.datetime.now()),
-                            'Connected by',
-                            addr,
+                        self.logger.debug(
+                            "%s Connected by %s" % (
+                                str(datetime.datetime.now()),
+                                addr,
+                            )
                         )
 
                         # it goes in the queue
@@ -177,8 +184,8 @@ class Server(object):
                             es = str(sys.exc_info())
                             if ('Broken pipe' in es
                                     or 'Transport endpoint' in es):
-                                print("caught exception '%s'" % es)
-                                print('ignoring')
+                                self.logger.info("caught exception '%s'" % es)
+                                self.logger.info('ignoring')
                         finally:
                             # whatever happens we can't talk to this client any
                             # more
@@ -189,8 +196,8 @@ class Server(object):
                 if 'Broken pipe' in es:
                     # this happens sometimes when someone ctrl-c in the middle
                     # of talking with the server
-                    print("caught exception '%s'" % es)
-                    print('ignoring Broken pipe exception')
+                    self.logger.info("caught exception '%s'" % es)
+                    self.logger.info('ignoring Broken pipe exception')
                 else:
                     raise e
 
@@ -204,9 +211,16 @@ class Server(object):
         if not data:
             return
 
-        print(str(datetime.datetime.now()), 'processing client request')
-        if self.verbosity > 1:
-            print(data)
+        self.logger.debug(
+            '%s %s' % (
+                str(datetime.datetime.now()),
+                'processing client request'
+            )
+        )
+
+        if self.loglevel == 'DEBUG':
+            self.logger.debug(str(data))
+
         try:
             message = yaml_load(data)
         except YAMLError as err:
@@ -234,8 +248,9 @@ class Server(object):
             err = {"error": errmess}
             yaml_response = yaml.dump(err)
 
-        if self.verbosity > 2:
-            print('response:', yaml_response)
+        if self.loglevel == 'DEBUG':
+            self.logger.debug("response: '%s'" % str(yaml_response))
+
         socket_send(client, yaml_response)
 
     def wait_for_connection(self):
@@ -246,20 +261,22 @@ class Server(object):
         while True:
             try:
                 conn, addr = self.sock.accept()
-                print('Connected by', addr)
+                self.logger.debug("Connected by %s" % addr)
                 return conn, addr
             except socket.timeout:
                 # we just reached the timeout, refresh the queue
-                print('refreshing queue')
+                self.logger.debug('refreshing queue')
                 self.queue.refresh()
-                if self.verbosity > 1:
-                    print_stat(self.queue.cluster.status())
+                if self.loglevel == 'DEBUG':
+                    print_stat(self.logger, self.queue.cluster.status())
 
     def refresh_queue(self):
-        print(str(datetime.datetime.now()), 'refreshing queue')
+        self.logger.debug(
+            '%s refreshing queue' % str(datetime.datetime.now())
+        )
         self.queue.refresh()
-        if self.verbosity > 1:
-            print_stat(self.queue.cluster.status())
+        if self.loglevel == 'DEBUG':
+            print_stat(self.logger, self.queue.cluster.status())
 
     def cleanup_failed_sockets(self, inputs, server):
         for sock in inputs:
@@ -291,15 +308,14 @@ class Node(object):
 
     def reserve(self):
         self.used += 1
-        if self.used > self.ncores:
-            print('Internal error.')
-            sys.exit(1)
+        assert self.used <= self.ncores, (
+            "git used cores %d > available "
+            "cores %d" % (self.used, self.ncores)
+        )
 
     def unreserve(self):
         self.used -= 1
-        if (self.used < 0):
-            print('Internal error.')
-            sys.exit(1)
+        assert self.used >= 0, "got used cores %d < 0" % self.used
 
 
 class Cluster(object):
@@ -382,7 +398,6 @@ class Users(object):
     """
     def __init__(self):
         self.users = {}
-        self.verbosity = 1
 
     def __contains__(self, user):
         return user in self.users
@@ -393,7 +408,6 @@ class Users(object):
         """
         if os.path.exists(fname):
 
-            print('Loading user info from:', fname)
             with open(fname) as fobj:
                 data = yaml_load(fobj)
 
@@ -498,8 +512,6 @@ class Job(dict):
         self['time_sub'] = time.time()
         self['spool_fname'] = None
 
-        self.verbosity = 1
-
     def _normalize_require(self):
         """
         deal with old names
@@ -533,7 +545,7 @@ class Job(dict):
             yaml.dump(dict(self), fobj)
 
     def unspool(self):
-        if (self['spool_fname']):
+        if self['spool_fname'] is not None:
             if os.path.exists(self['spool_fname']):
                 os.remove(self['spool_fname'])
             self['spool_fname'] = None
@@ -647,7 +659,6 @@ class Job(dict):
             reason = 'Number of requested cores not divisible by threads'
             return pmatch, match, hosts, reason
 
-        print("threads, num", threads, num)
         nump = num
 
         min_mem, reason = _get_dict_float(reqs, 'min_mem', 0.0)
@@ -725,9 +736,6 @@ class Job(dict):
             else:
                 reason = 'Not enough free cores.'
 
-        if self.verbosity > 1:
-            print(pmatch, match, hosts, reason)
-
         return pmatch, match, hosts, reason
 
     def _match_by_core1(self, cluster, bgroups):
@@ -755,9 +763,9 @@ class Job(dict):
         block_flag = False
         for h in sorted(cluster.nodes):
             nd = cluster.nodes[h]
-            if(not nd.online):
+            if not nd.online:
                 continue
-            if (nd.mem < min_mem):
+            if nd.mem < min_mem:
                 continue
 
             # is this node actually what we want
@@ -999,27 +1007,33 @@ class Job(dict):
 
 
 class JobQueue(object):
-    def __init__(self, cluster_file, spool_dir):
+    def __init__(self, cluster_file, spool_dir, loglevel='info'):
+
+        self.loglevel = loglevel.upper()
+        logging.basicConfig(stream=sys.stdout)
+        self.logger = logging.getLogger('Server')
+        self.logger.setLevel(getattr(logging, self.loglevel))
 
         self.spool_dir = spool_dir
         self.setup_spool()
 
-        print('Loading cluster from:', cluster_file)
+        self.logger.info('Loading cluster from: %s' % cluster_file)
         self.cluster = Cluster(cluster_file)
         self.queue = []
 
         self.load_users()
         self.load_spool()
 
-        print_users(self.users.asdict())
+        print_users(self.logger, self.users.asdict())
 
-        print_stat(self.cluster.status())
+        if self.loglevel == 'DEBUG':
+            print_stat(self.logger, self.cluster.status())
 
         self.verbosity = 1
 
     def setup_spool(self):
         if not os.path.exists(self.spool_dir):
-            print('making spool dir:', self.spool_dir)
+            self.logger.info('making spool dir:', self.spool_dir)
             os.makedirs(self.spool_dir)
 
     def users_file(self):
@@ -1028,15 +1042,16 @@ class JobQueue(object):
     def load_users(self):
         self.users = Users()
         fname = self.users_file()
+        self.logger.info('Loading user info from: %s' % fname)
         self.users.fromfile(fname)
 
     def save_users(self):
         fname = self.users_file()
-        print('saving users to:', fname)
+        self.logger.debug('saving users to: %s' % fname)
         self.users.tofile(fname)
 
     def load_spool(self):
-        print('Loading jobs from:', self.spool_dir)
+        self.logger.info('Loading jobs from: %s' % self.spool_dir)
         pattern = os.path.join(self.spool_dir, '*')
         flist = glob.glob(pattern)
         for fname in sorted(flist):
@@ -1046,8 +1061,8 @@ class JobQueue(object):
                         job_config = yaml_load(fobj)
                         job = Job(spool_dir=self.spool_dir, **job_config)
                     except YAMLError as err:
-                        print('could not load job file:', fname)
-                        print("caught exception: '%s'" % str(err))
+                        self.logger.info('could not load job file: %s' % fname)
+                        self.logger.info("caught exception: '%s'" % str(err))
                         job = None
 
                 if job is not None:
@@ -1093,7 +1108,9 @@ class JobQueue(object):
                 # job was told to run.
                 # see if the pid is still running, if not remove the job
                 if not self._pid_exists(job['pid']):
-                    print('removing job %s, pid no longer valid' % job['pid'])
+                    self.logger.debug(
+                        "removing job %s, pid no longer valid" % job['pid']
+                    )
                     pids_to_del.append(job['pid'])
 
                     self._unreserve_job_and_decrement_user(job)
@@ -1106,7 +1123,7 @@ class JobQueue(object):
                         # see if we can now run the job.  After all blocked
                         # jobs have been scheduled (or not) we updaate the list
                         # of blocked groups (it can't change later)
-                        if (priority != 'block') and (not have_blocked_groups):
+                        if priority != 'block' and not have_blocked_groups:
                             blocked_groups = self._blocked_groups()
                             have_blocked_groups = True
 
@@ -1140,7 +1157,7 @@ class JobQueue(object):
     def _process_command(self, message):
         command = message['command']
         date = str(datetime.datetime.now())
-        print("%s got command: '%s'" % (date, command))
+        self.logger.debug("%s got command: '%s'" % (date, command))
 
         if command == 'sub':
             self._process_submit_request(message)
@@ -1202,7 +1219,7 @@ class JobQueue(object):
                 self.response['response'] = 'OK'
                 break
 
-        if (not found):
+        if not found:
             self.response['error'] = ("Host not found.")
 
         return None
@@ -1387,8 +1404,7 @@ class JobQueue(object):
             self.response['error'] = "action should be 'clear'or 'set'"
             return
 
-        if self.verbosity > 1:
-            print('limits sent:', limits)
+        self.logger.debug('limits sent: %s' % limits)
 
         # we have a reference here, might want to hide this
         udata = self.users.get(user)
@@ -1426,9 +1442,9 @@ class JobQueue(object):
             for job in self.queue:
                 if job['pid'] == pid:
                     # we don't actually remove anything, refresh will do it.
-                    if (job['user'] != user and user != 'root'):
+                    if job['user'] != user and user != 'root':
                         self.response['error'] = (
-                                'PID belongs to user '+job['user']
+                            'PID belongs to user '+job['user']
                         )
                         return
 
@@ -1499,11 +1515,11 @@ class JobQueue(object):
             return False
 
 
-def print_stat(status):
+def print_stat(logger, status):
     """
     input status is the result of cluster.status
     """
-    print
+    logger.debug('')
     nodes = status['nodes']
     lines = []
     lens = {}
@@ -1541,15 +1557,15 @@ def print_stat(status):
     hdr = {}
     for k in lens:
         hdr[k] = k.capitalize()
-    print(fmt % hdr)
+    logger.debug(fmt % hdr)
     for line in lines:
-        print(fmt % line)
+        logger.debug(fmt % line)
 
     if tot_active_cores > 0:
         perc = 100.*status['used']/tot_active_cores
     else:
         perc = 00.00
-    print()
+    logger.debug('')
     mess = ' Used/avail/active cores: %i/%i/%i (%3.1f%% load, %i are offline)'
     mess = mess % (
         status['used'],
@@ -1559,10 +1575,10 @@ def print_stat(status):
         status['ncores']-tot_active_cores,
     )
 
-    print(mess)
+    logger.debug(mess)
 
 
-def print_users(users):
+def print_users(logger, users):
     """
     input should be a dict.  You an convert a Users instance
     using asdict()
@@ -1596,6 +1612,6 @@ def print_users(users):
     hdr = {}
     for k in lens:
         hdr[k] = k.capitalize()
-    print(fmt % hdr)
+    logger.info(fmt % hdr)
     for uname in sorted(udata):
-        print(fmt % udata[uname])
+        logger.info(fmt % udata[uname])
