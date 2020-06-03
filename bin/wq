@@ -397,9 +397,18 @@ class Limiter(dict):
 
 class NodeCommand(dict):
     """
-    usage: wq node astro001 astro002 "status:online;"
+    usage: wq node astro001 astro002 "status:online"
 
     set a node from offline to online or vice versa
+
+    To set a node offline
+        wq node machine_name "status:offline"
+
+    To set a node online
+        wq node machine_name "status:online"
+
+    You can set multiple machines
+        wq node machine1 machine2 "status:online"
     """
 
     def __init__(self, port, args):
