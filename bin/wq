@@ -30,11 +30,13 @@ import socket
 import sys
 from sys import stderr
 import yaml
+from yaml import YAMLError
 import os
 import signal
 import wq
 import time
 import subprocess
+from subprocess import SubprocessError
 import uuid
 
 from optparse import OptionParser
@@ -678,8 +680,8 @@ class Submitter(dict):
 
     def receive_kill(self, a, b):
         try:
-            self.remoteprocess.send_signal(signal.SIGTERM)
-        except:
+            self.remoteprocess.terminate()
+        except SubprocessError:
             pass
 
         self.message['command'] = 'notify'
@@ -906,9 +908,8 @@ def send_message(port, message, timeout=None, crash_on_timeout=False):
 
         try:
             rdict = yaml_load(data)
-        except:
-            # no way to predict the error, so using bare except
-            print('YAML err:', file=stderr)
+        except YAMLError as err:
+            print(str(err), file=stderr)
             print(data, file=stderr)
             sys.exit(1)
 
@@ -1030,15 +1031,13 @@ def main():
         es = str(sys.exc_info())
         if 'Broken pipe' not in es:
             raise
-    except:
-        print('Unexpected error: ', sys.exc_info()[0], file=stderr)
-        raise
     finally:
         # this helps with pipes, needed in addition to above catch of IOError
-        try:
-            sys.stdout.flush()
-        except:
-            pass
+        sys.stdout.flush()
+        # try:
+        #     sys.stdout.flush()
+        # except:
+        #     pass
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ from __future__ import print_function
 
 import socket
 import yaml
+from yaml import YAMLError
 import time
 import copy
 import sys
@@ -208,9 +209,14 @@ class Server(object):
             print(data)
         try:
             message = yaml_load(data)
-        except:
+        except YAMLError as err:
             # too many types of errors can occur
-            ret = {"error": "could not process YAML request: '%s'" % data}
+            ret = {
+                "error": (
+                    "Got error '%s' processing "
+                    "YAML request: '%s'" % (str(err), data)
+                )
+            }
             ret = yaml.dump(ret)
             socket_send(client, ret)
             return
@@ -220,10 +226,10 @@ class Server(object):
 
         try:
             yaml_response = yaml.dump(response)
-        except:
-            # too many types of errors can occur
+        except YAMLError as err:
             errmess = (
-                "server error creating YAML response; keyboard interrupt?"
+                "Server error processing YAML response: '%s'; "
+                "keyboard interrupt?" % str(err)
             )
             err = {"error": errmess}
             yaml_response = yaml.dump(err)
@@ -1039,10 +1045,9 @@ class JobQueue(object):
                     try:
                         job_config = yaml_load(fobj)
                         job = Job(spool_dir=self.spool_dir, **job_config)
-                    except:
+                    except YAMLError as err:
                         print('could not load job file:', fname)
-                        es = str(sys.exc_info())
-                        print("caught exception: '%s'" % es)
+                        print("caught exception: '%s'" % str(err))
                         job = None
 
                 if job is not None:
