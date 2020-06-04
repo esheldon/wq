@@ -6,11 +6,6 @@ The description file is
     hostname ncores mem groups
 
 The groups are optional comma separated list.
-
-TODO
-
-    - move port host max_buffsize etc. to not global variable in PARS
-    - see if catching yaml.YAMLError is good enough
 """
 import socket
 import yaml
@@ -27,7 +22,7 @@ import logging
 
 HOST = ''      # Symbolic name meaning all available interfaces
 DEFAULT_PORT = 51093   # Arbitrary non-privileged port
-MAX_BUFFSIZE = 4096
+BUFFSIZE = 4096
 
 # only listen for this many seconds, then refresh the queue
 SOCK_TIMEOUT = 30.0
@@ -202,7 +197,7 @@ class Server(object):
 
         We should be ready to recieve since we used select()
         """
-        data = socket_recieve(client, MAX_BUFFSIZE)
+        data = socket_recieve(client, BUFFSIZE)
         if not data:
             return
 

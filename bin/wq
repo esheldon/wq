@@ -920,7 +920,7 @@ def send_message(port, message, timeout=None, crash_on_timeout=False):
         jmess = yaml.dump(message)
 
         wq.server.socket_send(sock, jmess)
-        data = wq.server.socket_recieve(sock, wq.MAX_BUFFSIZE)
+        data = wq.server.socket_recieve(sock, wq.BUFFSIZE)
 
         sock.close()
 
