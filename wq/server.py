@@ -58,12 +58,7 @@ def socket_send(conn, mess):
         # python 2
         mess = bytes(mess)
 
-    reslen = len(mess)
-    tnsent = conn.send(mess)
-    nsent = tnsent
-    while nsent < reslen:
-        tnsent = conn.send(mess[nsent:])
-        nsent += tnsent
+    conn.sendall(mess)
 
 
 def socket_recieve(conn, buffsize):
@@ -103,7 +98,7 @@ class Server(object):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.bind((HOST, self.port))
         self.sock.setblocking(0)
-        self.sock.listen(4)
+        self.sock.listen()
 
     def run(self):
 
