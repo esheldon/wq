@@ -243,23 +243,6 @@ class Server(object):
 
         socket_send(client, yaml_response)
 
-    def wait_for_connection(self):
-        """
-        we want a chance to look for disappearing pids
-        even if we don't get a signal from any clients
-        """
-        while True:
-            try:
-                conn, addr = self.sock.accept()
-                self.logger.debug("Connected by %s" % addr)
-                return conn, addr
-            except socket.timeout:
-                # we just reached the timeout, refresh the queue
-                self.logger.debug('refreshing queue')
-                self.queue.refresh()
-                if self.loglevel == 'DEBUG':
-                    print_stat(self.queue.cluster.status())
-
     def refresh_queue(self):
         self.logger.debug(
             '%s refreshing queue' % str(datetime.datetime.now())
@@ -267,11 +250,6 @@ class Server(object):
         self.queue.refresh()
         if self.loglevel == 'DEBUG':
             print_stat(self.queue.cluster.status())
-
-    def cleanup_failed_sockets(self, inputs, server):
-        for sock in inputs:
-            if sock != server:
-                pass
 
 
 class Node(object):
