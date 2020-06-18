@@ -1052,9 +1052,14 @@ class JobQueue(object):
         self.response = copy.deepcopy(message)
 
         if not isinstance(message, dict):
-            self.response['error'] = "message should be a dictionary"
+            self.response = {
+                "error": "message should be a dictionary, got '%s'" % message
+            }
         elif 'command' not in message:
-            self.response['error'] = "message should contain a command"
+            self.response['error'] = (
+                "message should contain a "
+                "command, got '%s'" % message
+            )
         else:
             self._process_command(message)
 
