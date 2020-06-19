@@ -586,14 +586,14 @@ class Job(dict):
             if ulimits:
 
                 njobs_max = ulimits.get('Njobs', -1)
-                if njobs_max >= 0:
+                if njobs_max is not None and njobs_max >= 0:
                     # this is the actual number of jobs the user has
                     njobs = udata.get('Njobs', 0)
                     if njobs >= njobs_max:
                         return False
 
                 ncores_max = ulimits.get('Ncores', -1)
-                if ncores_max >= 0:
+                if ncores_max is not None and ncores_max >= 0:
                     # this is the actual number of cores the user has
                     ncores = udata.get('Ncores', 0)
                     if ncores >= ncores_max:
