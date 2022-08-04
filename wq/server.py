@@ -18,55 +18,17 @@ import glob
 import datetime
 import select
 import logging
-
-
-HOST = ''      # Symbolic name meaning all available interfaces
-DEFAULT_PORT = 51093   # Arbitrary non-privileged port
-BUFFSIZE = 4096
-
-# only listen for this many seconds, then refresh the queue
-SOCK_TIMEOUT = 30.0
-WAIT_SLEEP = 10.0
-DEFAULT_SPOOL_DIR = '~/wqspool/'
-
-PRIORITY_LIST = ['block', 'high', 'med', 'low']
-
-# how many seconds to wait before restart
-RESTART_DELAY = 60
-
-
-def yaml_load(obj):
-    return yaml.load(obj, Loader=yaml.SafeLoader)
-
-
-def socket_send(conn, mess):
-    """
-    Send a message using a socket or connection, trying until all data is sent.
-
-    hmm... is this going to max the cpu if we can't get through right away?
-    """
-
-    try:
-        # python 3
-        mess = bytes(mess, 'utf-8')
-    except TypeError:
-        # python 2
-        mess = bytes(mess)
-
-    conn.sendall(mess)
-
-
-def socket_recieve(conn, buffsize):
-    """
-    Recieve all data from a socket or connection, dealing with buffers.
-    """
-    tdata = conn.recv(buffsize)
-    data = tdata
-    while len(tdata) == buffsize:
-        tdata = conn.recv(buffsize)
-        data += tdata
-
-    return data
+from .util import socket_send, socket_receive, yaml_load
+from .defaults import (
+    HOST,
+    DEFAULT_PORT,
+    BUFFSIZE,
+    SOCK_TIMEOUT,
+    WAIT_SLEEP,
+    DEFAULT_SPOOL_DIR,
+    PRIORITY_LIST,
+    RESTART_DELAY,
+)
 
 
 class Server(object):
@@ -197,7 +159,7 @@ class Server(object):
 
         We should be ready to recieve since we used select()
         """
-        data = socket_recieve(client, BUFFSIZE)
+        data = socket_receive(client, BUFFSIZE)
         if not data:
             return
 
@@ -412,36 +374,61 @@ class Users(object):
             self.users[user] = udata
         return udata
 
-    def increment_user(self, user, hosts):
+    def increment_user_running(self, job):
+        user = job['user']
+        hosts = job['hosts']
+
         udata = self.users.get(user, None)
         if udata is None:
             udata = self.add_new(user)
 
         ncores = len(hosts)
         if ncores > 0:
-            udata['Njobs'] += 1
-            udata['Ncores'] += ncores
+            udata['run'] += 1
+            udata['cores'] += ncores
 
-    def decrement_user(self, user, hosts):
+    def increment_user_jobcount(self, job):
+        user = job['user']
+        udata = self.users.get(user, None)
+        if udata is None:
+            udata = self.add_new(user)
+
+        udata['total'] += 1
+
+    def decrement_user_running(self, job):
+        user = job['user']
+        hosts = job['hosts']
+
         udata = self.users.get(user, None)
         if not udata:
             return
 
         ncores = len(hosts)
         if ncores > 0:
-            udata['Njobs'] -= 1
-            udata['Ncores'] -= ncores
+            udata['run'] -= 1
+            udata['cores'] -= ncores
 
-        if udata['Njobs'] < 0:
-            udata['Njobs'] = 0
-        if udata['Ncores'] < 0:
-            udata['Ncores'] = 0
+        if udata['run'] < 0:
+            udata['run'] = 0
+        if udata['cores'] < 0:
+            udata['cores'] = 0
+
+    def decrement_user_jobcount(self, job):
+        user = job['user']
+        udata = self.users.get(user, None)
+        if udata is None:
+            udata = self.add_new(user)
+
+        udata['total'] -= 1
+        if udata['total'] < 0:
+            udata['total'] = 0
 
     def _new_user(self, user):
         return {
             'user': user,
-            'Njobs': 0,
-            'Ncores': 0,
+            'run': 0,  # running jobs
+            'total': 0,  # total jobs including not running
+            'cores': 0,
             'limits': {},
         }
 
@@ -540,20 +527,25 @@ class Job(dict):
         # later
 
         if submit_mode in ('by_core', 'bycore'):
-            pmatch, match, hosts, reason = \
-                    self._match_by_core(cluster, blocked_groups)
+            pmatch, match, hosts, reason = (
+                self._match_by_core(cluster, blocked_groups)
+            )
         elif submit_mode in ('by_core1', 'bycore1'):
-            pmatch, match, hosts, reason = \
-                    self._match_by_core1(cluster, blocked_groups)
+            pmatch, match, hosts, reason = (
+                self._match_by_core1(cluster, blocked_groups)
+            )
         elif submit_mode in ('by_node', 'bynode'):
-            pmatch, match, hosts, reason = \
-                    self._match_by_node(cluster, blocked_groups)
+            pmatch, match, hosts, reason = (
+                self._match_by_node(cluster, blocked_groups)
+            )
         elif submit_mode in ('by_host', 'byhost'):
-            pmatch, match, hosts, reason = \
-                    self._match_by_host(cluster, blocked_groups)
+            pmatch, match, hosts, reason = (
+                self._match_by_host(cluster, blocked_groups)
+            )
         elif submit_mode in ('by_group', 'bygroup'):
-            pmatch, match, hosts, reason = \
-                    self._match_by_group(cluster, blocked_groups)
+            pmatch, match, hosts, reason = (
+                self._match_by_group(cluster, blocked_groups)
+            )
         else:
             pmatch = False  # unknown request never mathces
             reason = "bad submit_mode '%s'" % submit_mode
@@ -585,17 +577,29 @@ class Job(dict):
             ulimits = udata['limits']
             if ulimits:
 
-                njobs_max = ulimits.get('Njobs', -1)
-                if njobs_max is not None and njobs_max >= 0:
-                    # this is the actual number of jobs the user has
-                    njobs = udata.get('Njobs', 0)
-                    if njobs >= njobs_max:
+                if 'run' in ulimits:
+                    nrun_max = ulimits['run']
+                elif 'Njobs' in ulimits:
+                    nrun_max = ulimits['Njobs']
+                else:
+                    nrun_max = -1
+
+                if nrun_max is not None and nrun_max >= 0:
+                    # this is the actual number of jobs the user has running
+                    nrun = udata.get('run', 0)
+                    if nrun >= nrun_max:
                         return False
 
-                ncores_max = ulimits.get('Ncores', -1)
+                if 'cores' in ulimits:
+                    ncores_max = ulimits['cores']
+                elif 'Ncores' in ulimits:
+                    ncores_max = ulimits['Ncores']
+                else:
+                    ncores_max = -1
+
                 if ncores_max is not None and ncores_max >= 0:
                     # this is the actual number of cores the user has
-                    ncores = udata.get('Ncores', 0)
+                    ncores = udata.get('cores', 0)
                     if ncores >= ncores_max:
                         return False
 
@@ -1039,11 +1043,14 @@ class JobQueue(object):
                         job = None
 
                 if job is not None:
+                    # increment the total job count
+                    self.users.increment_user_jobcount(job)
                     if job['status'] == 'run':
                         # here we need to reserve the cluster and increment the
                         # user data
                         self.cluster.reserve(job['hosts'])
-                        self.users.increment_user(job['user'], job['hosts'])
+                        # increment count of running jobs and cores used
+                        self.users.increment_user_running(job)
 
                     self.queue.append(job)
 
@@ -1114,9 +1121,7 @@ class JobQueue(object):
                             job.spool()
 
                             # keep statistics for each user
-                            self.users.increment_user(
-                                job['user'], job['hosts'],
-                            )
+                            self.users.increment_user_running(job)
 
         # rebuild the queue without these items
         if len(pids_to_del) > 0:
@@ -1129,9 +1134,13 @@ class JobQueue(object):
             fname = job.get_spool_fname(status=status)
             if os.path.exists(fname):
                 os.remove(fname)
-        # job.unspool()
+
+        # decrement total job count
+        self.users.decrement_user_jobcount(job)
         if job['status'] == 'run':
-            self.users.decrement_user(job['user'], job['hosts'])
+
+            # if running, decrement count of running and cores
+            self.users.decrement_user_running(job)
             self.cluster.unreserve(job['hosts'])
             job['status'] = 'done'
 
@@ -1155,6 +1164,8 @@ class JobQueue(object):
             self._process_status_request(message)
         elif command == 'users':
             self._process_userlist_request()
+        elif command == 'user':
+            self._process_user_request(message)
         elif command == 'limit':
             self._process_limit_request(message)
         elif command == 'rm':
@@ -1279,7 +1290,9 @@ class JobQueue(object):
                 self.cluster.reserve(newjob['hosts'])
 
                 # keep statistics for each user
-                self.users.increment_user(newjob['user'], newjob['hosts'])
+                # increment count of running jobs and cores used
+                self.users.increment_user_jobcount(newjob)
+                self.users.increment_user_running(newjob)
 
             # this will create a pid.wait or pid.run depending on status if
             # status='ready', sets status to 'run' once the pid file is written
@@ -1290,8 +1303,9 @@ class JobQueue(object):
             # we do a refresh
             self.queue.append(newjob)
             self.response['response'] = newjob['status']
-            self.response['spool_fname'] = \
+            self.response['spool_fname'] = (
                 newjob['spool_fname'].replace('wait', 'run')
+            )
 
             self.response['spool_wait'] = newjob['spool_wait']
 
@@ -1303,8 +1317,9 @@ class JobQueue(object):
     def _process_get_hosts(self, message):
         pid = message.get('pid', None)
         if pid is None:
-            self.response['error'] = \
-                    "submit requests must contain the 'pid' field"
+            self.response['error'] = (
+                "submit requests must contain the 'pid' field"
+            )
             return
 
         for job in self.queue:
@@ -1369,6 +1384,12 @@ class JobQueue(object):
     def _process_userlist_request(self):
         self.response['response'] = self.users.asdict()
 
+    def _process_user_request(self, message):
+        ud = self.users.asdict()
+        self.response['response'] = {
+            user:ud[user] for user in ud if user == message['user']
+        }
+
     def _process_limit_request(self, message):
         """
         Currently only processing the limits entry
@@ -1411,12 +1432,14 @@ class JobQueue(object):
         pid = message.get('pid', None)
         user = message.get('user', None)
         if pid is None:
-            self.response['error'] = \
-                    "remove requests must contain the 'pid' field"
+            self.response['error'] = (
+                "remove requests must contain the 'pid' field"
+            )
             return
         if user is None:
-            self.response['error'] = \
-                    "remove requests must contain the 'user' field"
+            self.response['error'] = (
+                "remove requests must contain the 'user' field"
+            )
             return
 
         if pid == 'all':
@@ -1452,23 +1475,26 @@ class JobQueue(object):
     def _process_notification(self, message):
         notifi = message.get('notification', None)
         if notifi is None:
-            self.response['error'] = \
-                    "notify requests must contain the 'notification' field"
+            self.response['error'] = (
+                "notify requests must contain the 'notification' field"
+            )
             return
 
         if notifi == 'done':
             pid = message.get('pid', None)
             if pid is None:
-                self.response['error'] = \
-                        "remove requests must contain the 'pid' field"
+                self.response['error'] = (
+                    "remove requests must contain the 'pid' field"
+                )
                 return
             self._remove_from_notify(pid)
             self.refresh()
         elif notifi == 'refresh':
             self.refresh()
         else:
-            self.response['error'] = \
-                    "Only support 'done' or 'refresh' notifications for now"
+            self.response['error'] = (
+                "Only support 'done' or 'refresh' notifications for now"
+            )
             return
 
     def _remove_from_notify(self, pid):
@@ -1567,7 +1593,7 @@ def print_users(users):
     input should be a dict.  You an convert a Users instance
     using asdict()
     """
-    keys = ['user', 'Njobs', 'Ncores', 'limits']
+    keys = ['user', 'total', 'run', 'cores', 'limits']
     lens = {}
     for k in keys:
         lens[k] = len(k)
@@ -1577,8 +1603,9 @@ def print_users(users):
         user = users[uname]
         udata[uname] = {}
         udata[uname]['user'] = uname
-        udata[uname]['Njobs'] = user['Njobs']
-        udata[uname]['Ncores'] = user['Ncores']
+        udata[uname]['total'] = user['total']
+        udata[uname]['run'] = user['run']
+        udata[uname]['cores'] = user['cores']
         limits = user['limits']
         limits = (
             '{' + ';'.join(['%s:%s' % (y, limits[y]) for y in limits]) + '}'
@@ -1589,13 +1616,15 @@ def print_users(users):
             lens[k] = max(lens[k], len(str(udata[uname][k])))
 
     fmt = ' %(user)-'+str(lens['user'])+'s'
-    fmt += '  %(Njobs)-'+str(lens['Njobs'])+'s'
-    fmt += '  %(Ncores)-'+str(lens['Ncores'])+'s'
+    fmt += '  %(total)-'+str(lens['total'])+'s'
+    fmt += '  %(run)-'+str(lens['run'])+'s'
+    fmt += '  %(cores)-'+str(lens['cores'])+'s'
     fmt += '  %(limits)-'+str(lens['limits'])+'s'
 
     hdr = {}
     for k in lens:
-        hdr[k] = k.capitalize()
+        # hdr[k] = k.capitalize()
+        hdr[k] = k
     print(fmt % hdr)
     for uname in sorted(udata):
         print(fmt % udata[uname])

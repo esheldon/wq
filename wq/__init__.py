@@ -1,8 +1,16 @@
-__version__ = '0.2.0'
+# flake8: noqa
+
+__version__ = '0.9.0'
 
 from . import server
 
-from .server import HOST
-from .server import DEFAULT_PORT
-from .server import BUFFSIZE
-from .server import DEFAULT_SPOOL_DIR
+from . import util
+from .util import send_message
+
+from . import defaults
+from .defaults import HOST
+from .defaults import DEFAULT_PORT
+from .defaults import BUFFSIZE
+from .defaults import DEFAULT_SPOOL_DIR
+
+

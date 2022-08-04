@@ -26,14 +26,14 @@ e.g.
 """
 from __future__ import print_function
 
-import socket
 import sys
 from sys import stderr
 import yaml
-from yaml import YAMLError
 import os
 import signal
 import wq
+from wq import send_message
+from wq.util import yaml_load
 import time
 import subprocess
 from subprocess import SubprocessError
@@ -41,12 +41,9 @@ import uuid
 
 from optparse import OptionParser
 
+
 # need to move this into server.py and require a real installation
 _COMMANDS = ['serve', 'sub', 'ls', 'stat', 'rm', 'refresh']
-
-
-def yaml_load(obj):
-    return yaml.load(obj, Loader=yaml.SafeLoader)
 
 
 class ServerWrapper(object):
@@ -345,7 +342,35 @@ class UsersLister(dict):
         wq.server.print_users(users)
 
 
-_LIMIT_VALID_KEYS = ['Njobs', 'Ncores']
+class UserLister(dict):
+    """
+    usage: wq user {username}
+
+    print info for a user in the system
+    """
+
+    def __init__(self, port, args):
+        self.port = port
+        parser = OptionParser(Stats.__doc__)
+        options, args = parser.parse_args(args)
+        if len(args) < 1:
+            parser.print_help()
+            sys.exit(1)
+
+        self.user = args[0]
+
+    def execute(self):
+        message = {}
+        message['command'] = 'user'
+        message['user'] = self.user
+
+        resp = send_message(self.port, message)
+
+        userdata = resp['response']
+        wq.server.print_users(userdata)
+
+
+_LIMIT_VALID_KEYS = ['Njobs', 'run', 'Ncores', 'cores']
 
 
 class Limiter(dict):
@@ -353,9 +378,21 @@ class Limiter(dict):
     usage: wq limit "key1:val1; key2:val2; ..."
 
     Place limits on the user such as
+        # limit number of running jobs.
+        wq limit "run: 10"
+
+        # limit total number of cores.
+        wq limit "cores: 120"
+
+        # limits on both
+        wq limit "cores: 120; run: 25"
+
+    These versions also allowed for backwards compatibility
+        # limit number of running jobs.
         wq limit "Njobs: 10"
+
+        # limit total number of cores.
         wq limit "Ncores: 120"
-        wq limit "Ncores: 120; Njobs: 25"
 
     To clear your limits
         wq limit clear
@@ -886,67 +923,6 @@ class Submitter(dict):
             print('%-15s %s' % (kk, pf), file=stderr)
 
 
-def socket_connect(sock, conninfo, crash_on_timeout=False):
-    """
-    crash will only happen if timeouts have been enabled, otherwise we just
-    wait
-    """
-    if crash_on_timeout:
-        sock.connect(conninfo)
-    else:
-        while True:
-            try:
-                sock.connect(conninfo)
-                break
-            except socket.timeout:
-                pass
-
-
-def send_message(port, message, timeout=None, crash_on_timeout=False):
-
-    if len(message) == 0:
-        raise ValueError("message must have len > 0")
-
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # make sure to set timeout *before* calling connect()
-    if timeout is not None:
-        sock.settimeout(timeout)
-
-    conninfo = (wq.HOST, port)
-    socket_connect(sock, conninfo, crash_on_timeout=crash_on_timeout)
-
-    rdict = None
-    try:
-        jmess = yaml.dump(message)
-
-        wq.server.socket_send(sock, jmess)
-        data = wq.server.socket_recieve(sock, wq.BUFFSIZE)
-
-        sock.close()
-
-        try:
-            rdict = yaml_load(data)
-        except YAMLError as err:
-            print(str(err), file=stderr)
-            print(data, file=stderr)
-            sys.exit(1)
-
-        if 'error' in rdict:
-            raise RuntimeError("Error reported by server: %s" % rdict['error'])
-
-        if 'response' not in rdict:
-            raise RuntimeError("Internal error. Expected a response "
-                               "and got screwed.")
-
-    finally:
-        sock.close()
-
-    if rdict is None:
-        sys.exit(1)
-
-    return rdict
-
-
 def get_command_obj(port, args):
     if args[0] == 'sub':
         command_class = Submitter
@@ -956,6 +932,8 @@ def get_command_obj(port, args):
         command_class = Stats
     elif args[0] == 'users':
         command_class = UsersLister
+    elif args[0] == 'user':
+        command_class = UserLister
     elif args[0] == 'limit':
         command_class = Limiter
     elif args[0] == 'rm':
