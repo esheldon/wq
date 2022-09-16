@@ -21,11 +21,9 @@ import logging
 from .util import socket_send, socket_receive, yaml_load
 from .defaults import (
     HOST,
-    DEFAULT_PORT,
     BUFFSIZE,
     SOCK_TIMEOUT,
     WAIT_SLEEP,
-    DEFAULT_SPOOL_DIR,
     PRIORITY_LIST,
     RESTART_DELAY,
 )
@@ -1387,7 +1385,7 @@ class JobQueue(object):
     def _process_user_request(self, message):
         ud = self.users.asdict()
         self.response['response'] = {
-            user:ud[user] for user in ud if user == message['user']
+            user: ud[user] for user in ud if user == message['user']
         }
 
     def _process_limit_request(self, message):
