@@ -1,7 +1,8 @@
+from optparse import OptionParser
 from .util import send_message
 
 
-class Stats(dict):
+class Status(dict):
     """
     usage: wq stat
 
@@ -9,9 +10,8 @@ class Stats(dict):
     """
 
     def __init__(self, port, args):
-        from optparse import OptionParser
         self.port = port
-        parser = OptionParser(Stats.__doc__)
+        parser = OptionParser(Status.__doc__)
         options, args = parser.parse_args(args)
 
     def execute(self):
@@ -22,19 +22,29 @@ class Stats(dict):
 
         status = resp['response']
 
-        print_stats(status)
+        print_status(status)
 
 
-def print_stats(status):
+def print_status(status):
     """
     print out a status report given the input statistics
     """
-    lines = get_stats_lines(status)
+    lines = get_statuss_lines(status)
     for line in lines:
         print(line)
 
 
-def get_stats_lines(status):
+def get_statuss(port):
+    message = {}
+    message['command'] = 'stat'
+
+    resp = send_message(self.port, message)
+
+    status = resp['response']
+    return status
+
+
+def get_status_lines(status):
     """
     input status is the result of cluster.status
     """
