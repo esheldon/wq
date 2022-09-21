@@ -51,9 +51,8 @@ class JobLister(dict):
 def get_job_lines(job_listing, user=None):
     lines = []
 
-    lines.append(job_listing['header'])
-
     if len(job_listing['entries']) > 0:
+        lines.append(job_listing['footer'])
 
         for entry in sorted(job_listing['entries'], key=lambda x: x['time_sub']):  # noqa
             lines.append(job_listing['fmt'] % entry)
@@ -157,7 +156,7 @@ def get_job_listing(port, full=False, user=None):
     fmt = ' '.join(fmt)
     fmt = ' '+fmt
 
-    header = fmt % {
+    footer = fmt % {
         'pid': 'Pid', 'user': 'User',
         'st': 'St', 'pri': 'Pri', 'nc': 'Nc',
         'nh': 'Nh', 'host0': 'Host0',
@@ -165,7 +164,7 @@ def get_job_listing(port, full=False, user=None):
     }
 
     return {
-        'header': header,
+        'footer': footer,
         'entries': entries,
         'fmt': fmt,
         'nrun': nrun,
