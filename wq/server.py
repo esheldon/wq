@@ -19,7 +19,7 @@ import datetime
 import select
 import logging
 from .util import socket_send, socket_receive, yaml_load
-from .stats import print_stats
+from .status import print_status
 from .user_lister import print_users
 
 from .defaults import (
@@ -212,7 +212,7 @@ class Server(object):
         )
         self.queue.refresh()
         if self.loglevel == 'DEBUG':
-            print_stats(self.queue.cluster.status())
+            print_status(self.queue.cluster.status())
 
 
 class Node(object):
@@ -1005,7 +1005,7 @@ class JobQueue(object):
 
         # always print these on startup
         print_users(self.users.asdict())
-        print_stats(self.cluster.status())
+        print_status(self.cluster.status())
 
         self.verbosity = 1
 

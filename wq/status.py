@@ -15,13 +15,7 @@ class Status(dict):
         options, args = parser.parse_args(args)
 
     def execute(self):
-        message = {}
-        message['command'] = 'stat'
-
-        resp = send_message(self.port, message)
-
-        status = resp['response']
-
+        status = get_status(port=self.port)
         print_status(status)
 
 
@@ -29,16 +23,19 @@ def print_status(status):
     """
     print out a status report given the input statistics
     """
-    lines = get_statuss_lines(status)
+    lines = get_status_lines(status)
     for line in lines:
         print(line)
 
 
-def get_statuss(port):
+def get_status(port):
+    """
+    get status info from the server
+    """
     message = {}
     message['command'] = 'stat'
 
-    resp = send_message(self.port, message)
+    resp = send_message(port, message)
 
     status = resp['response']
     return status

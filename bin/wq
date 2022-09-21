@@ -35,7 +35,7 @@ import wq
 from wq import send_message
 from wq.util import yaml_load
 from wq.job_lister import JobLister
-from wq.stats import Stats
+from wq.status import Status
 from wq.user_lister import UsersLister, UserLister
 import time
 import subprocess
@@ -653,7 +653,7 @@ def get_command_obj(port, args):
     elif args[0] == 'ls':
         command_class = JobLister
     elif args[0] == 'stat':
-        command_class = Stats
+        command_class = Status
     elif args[0] == 'users':
         command_class = UsersLister
     elif args[0] == 'user':

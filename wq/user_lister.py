@@ -16,14 +16,8 @@ class UsersLister(dict):
         options, args = parser.parse_args(args)
 
     def execute(self):
-        message = {}
-        message['command'] = 'users'
-
-        resp = send_message(self.port, message)
-
-        users = resp['response']
-
-        print_users(users)
+        userdata = get_user_data(self.port)
+        print_users(userdata)
 
 
 class UserLister(dict):
@@ -44,14 +38,22 @@ class UserLister(dict):
         self.user = args[0]
 
     def execute(self):
-        message = {}
-        message['command'] = 'user'
-        message['user'] = self.user
-
-        resp = send_message(self.port, message)
-
-        userdata = resp['response']
+        userdata = get_user_data(self.port, user=self.user)
         print_users(userdata)
+
+
+def get_user_data(port, user=None):
+    message = {}
+    if user is None:
+        message['command'] = 'users'
+    else:
+        message['command'] = 'user'
+        message['user'] = user
+
+    resp = send_message(port, message)
+
+    userdata = resp['response']
+    return userdata
 
 
 def print_users(users):
