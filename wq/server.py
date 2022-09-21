@@ -19,6 +19,9 @@ import datetime
 import select
 import logging
 from .util import socket_send, socket_receive, yaml_load
+from .stats import print_stats
+from .user_lister import print_users
+
 from .defaults import (
     HOST,
     BUFFSIZE,
@@ -209,7 +212,7 @@ class Server(object):
         )
         self.queue.refresh()
         if self.loglevel == 'DEBUG':
-            print_stat(self.queue.cluster.status())
+            print_stats(self.queue.cluster.status())
 
 
 class Node(object):
@@ -1002,7 +1005,7 @@ class JobQueue(object):
 
         # always print these on startup
         print_users(self.users.asdict())
-        print_stat(self.cluster.status())
+        print_stats(self.cluster.status())
 
         self.verbosity = 1
 
@@ -1521,108 +1524,3 @@ class JobQueue(object):
             return True
         else:
             return False
-
-
-def print_stat(status):
-    """
-    input status is the result of cluster.status
-    """
-    print()
-    nodes = status['nodes']
-    lines = []
-    lens = {}
-    tot_active_cores = status['ncores']
-    for k in ['usage', 'host', 'mem', 'groups']:
-        lens[k] = len(k)
-    for d in nodes:
-        if d['online'] is True:
-            usage = '['+'*'*d['used']+'.'*(d['ncores']-d['used'])+']'
-            line = {
-                'usage': usage,
-                'host': d['hostname'],
-                'mem': '%g' % d['mem'],
-                'groups': ','.join(d['grps']),
-            }
-            for n in lens:
-                lens[n] = max(lens[n], len(line[n]))
-            lines.append(line)
-        elif d['online'] is False:
-            usage = '['+'X'*d['ncores']+']'
-            line = {
-                'usage': usage,
-                'host': d['hostname'],
-                'mem': '%g' % d['mem'],
-                'groups': ','.join(d['grps']),
-            }
-            for n in lens:
-                lens[n] = max(lens[n], len(line[n]))
-
-            lines.append(line)
-            tot_active_cores = tot_active_cores-d['ncores']
-
-    fmt = ' %(usage)-'+str(lens['usage'])+'s  %(host)-'+str(lens['host'])+'s '
-    fmt += ' %(mem)'+str(lens['mem'])+'s %(groups)-'+str(lens['groups'])+'s'
-    hdr = {}
-    for k in lens:
-        hdr[k] = k.capitalize()
-    print(fmt % hdr)
-    for line in lines:
-        print(fmt % line)
-
-    if tot_active_cores > 0:
-        perc = 100.*status['used']/tot_active_cores
-    else:
-        perc = 00.00
-    print()
-    mess = ' Used/avail/active cores: %i/%i/%i (%3.1f%% load, %i are offline)'
-    mess = mess % (
-        status['used'],
-        tot_active_cores-status['used'],
-        tot_active_cores,
-        perc,
-        status['ncores']-tot_active_cores,
-    )
-
-    print(mess)
-
-
-def print_users(users):
-    """
-    input should be a dict.  You an convert a Users instance
-    using asdict()
-    """
-    keys = ['user', 'total', 'run', 'cores', 'limits']
-    lens = {}
-    for k in keys:
-        lens[k] = len(k)
-
-    udata = {}
-    for uname in users:
-        user = users[uname]
-        udata[uname] = {}
-        udata[uname]['user'] = uname
-        udata[uname]['total'] = user['total']
-        udata[uname]['run'] = user['run']
-        udata[uname]['cores'] = user['cores']
-        limits = user['limits']
-        limits = (
-            '{' + ';'.join(['%s:%s' % (y, limits[y]) for y in limits]) + '}'
-        )
-        udata[uname]['limits'] = limits
-
-        for k in lens:
-            lens[k] = max(lens[k], len(str(udata[uname][k])))
-
-    fmt = ' %(user)-'+str(lens['user'])+'s'
-    fmt += '  %(total)-'+str(lens['total'])+'s'
-    fmt += '  %(run)-'+str(lens['run'])+'s'
-    fmt += '  %(cores)-'+str(lens['cores'])+'s'
-    fmt += '  %(limits)-'+str(lens['limits'])+'s'
-
-    hdr = {}
-    for k in lens:
-        # hdr[k] = k.capitalize()
-        hdr[k] = k
-    print(fmt % hdr)
-    for uname in sorted(udata):
-        print(fmt % udata[uname])

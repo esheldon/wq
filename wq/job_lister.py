@@ -45,116 +45,33 @@ class JobLister(dict):
             header, entries, fmt, nrun, nwait = res
 
             if len(entries) > 0:
-                print(header)
 
                 for entry in sorted(entries, key=lambda x: x['time_sub']):
                     print(fmt % entry)
 
-                njobs = nrun + nwait
-                stats = 'Jobs: %s Running: %s Waiting: %s' % (
-                    njobs, nrun, nwait,
-                )
-                if self.user is not None:
-                    print(' User: %s %s' % (','.join(self.user), stats))
-                else:
-                    print(' %s' % stats)
-
-    # def set_listing(self):
-    #     message = {}
-    #     message['command'] = 'ls'
-    #     resp = send_message(self.port, message)
-    #
-    #     if self.full:
-    #         if self.user is not None:
-    #             self.full_listing = [
-    #                 r for r in resp['response'] if r['user'] in self.user
-    #             ]
-    #         else:
-    #             self.full_listing = resp['response']
-    #
-    #         return
-    #
-    #     names = ['pid', 'user', 'st', 'pri', 'nc',
-    #              'nh', 'host0', 'Tq', 'Trun', 'cmd']
-    #
-    #     lens = {}
-    #     for k in names:
-    #         lens[k] = len(k)
-    #
-    #     self.nrun = 0
-    #     self.nwait = 0
-    #     self.entries = []
-    #     timenow = time.time()
-    #     for r in resp['response']:
-    #         if 'user' not in r:
-    #             continue
-    #
-    #         if self.user is None or r['user'] in self.user:
-    #             if r['status'] == 'run':
-    #                 self.nrun += 1
-    #             else:
-    #                 self.nwait += 1
-    #
-    #             this = {}
-    #             this['pid'] = r['pid']
-    #             this['user'] = r['user']
-    #             this['pri'] = r['priority']
-    #             this['st'] = self._get_status(r)
-    #             this['nc'] = self._get_ncores(r)
-    #             # this may replace command with job_name, if it exists
-    #             this['cmd'] = self._get_command(r)
-    #             this['Tq'] = self._get_time_in(r, timenow)
-    #             this['Trun'] = self._get_time_run(r, timenow)
-    #
-    #             this['nh'] = self._get_nhosts(r)
-    #
-    #             # this is the first host on the list
-    #             this['host0'] = self._get_host0(r)
-    #
-    #             # for sorting
-    #             this['time_sub'] = r['time_sub']
-    #
-    #             for k in this:
-    #                 if k in lens:
-    #                     lens[k] = max(lens[k], len(('%s' % this[k])))
-    #
-    #             self.entries.append(this)
-    #
-    #     fmt = []
-    #     for k in names:
-    #         if k in ['Tq', 'Trun']:
-    #             align = ''
-    #         else:
-    #             align = '-'
-    #
-    #         fmt.append('%('+k+')'+align+str(lens[k])+'s')
-    #
-    #     fmt = ' '.join(fmt)
-    #     fmt = ' '+fmt
-    #
-    #     self.fmt = fmt
-    #
-        # this is the header for each column
-        # if len(entries) > 0:
-        #     self.header = fmt % {
-        #         'pid': 'Pid', 'user': 'User',
-        #         'st': 'St', 'pri': 'Pri', 'nc': 'Nc',
-        #         'nh': 'Nh', 'host0': 'Host0',
-        #         'cmd': 'Cmd', 'Tq': 'Tq', 'Trun': 'Trun',
-        #     }
-        #
-        # for line in sorted(lines, key=lambda x: x['time_sub']):
-        #     print(fmt % line)
-        #
-        # njobs = nrun+nwait
-        # stats = 'Jobs: %s Running: %s Waiting: %s' % (njobs, nrun, nwait)
-        # if self.user is not None:
-        #     print(' User: %s %s' % (','.join(self.user), stats))
-        # else:
-        #     print(' %s' % stats)
+            njobs = nrun + nwait
+            stats = 'Jobs: %s Running: %s Waiting: %s' % (
+                njobs, nrun, nwait,
+            )
+            if self.user is not None:
+                print(' User: %s %s' % (','.join(self.user), stats))
+            else:
+                print(' %s' % stats)
 
 
 def get_listing(port, full=False, user=None):
+    """
+    Get the job listing and other info to print stats
+
+    Parameters
+    ----------
+    port: int
+        The port number
+    user: str, optional
+        If set to True, limit listing to the specified user
+    full: boolean, optional
+        If set to True, return the full listing
+    """
     import time
 
     message = {}
@@ -238,25 +155,6 @@ def get_listing(port, full=False, user=None):
     }
 
     return header, entries, fmt, nrun, nwait
-
-    # this is the header for each column
-    # if len(entries) > 0:
-    #     self.header = fmt % {
-    #         'pid': 'Pid', 'user': 'User',
-    #         'st': 'St', 'pri': 'Pri', 'nc': 'Nc',
-    #         'nh': 'Nh', 'host0': 'Host0',
-    #         'cmd': 'Cmd', 'Tq': 'Tq', 'Trun': 'Trun',
-    #     }
-    #
-    # for line in sorted(lines, key=lambda x: x['time_sub']):
-    #     print(fmt % line)
-    #
-    # njobs = nrun+nwait
-    # stats = 'Jobs: %s Running: %s Waiting: %s' % (njobs, nrun, nwait)
-    # if self.user is not None:
-    #     print(' User: %s %s' % (','.join(self.user), stats))
-    # else:
-    #     print(' %s' % stats)
 
 
 def _extract_status(r):
