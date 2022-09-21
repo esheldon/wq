@@ -12,5 +12,3 @@ from .defaults import HOST
 from .defaults import DEFAULT_PORT
 from .defaults import BUFFSIZE
 from .defaults import DEFAULT_SPOOL_DIR
-
-

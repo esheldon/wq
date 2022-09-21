@@ -101,4 +101,26 @@ def yaml_load(obj):
     return yaml.safe_load(obj)
 
 
+def get_time_diff(dt):
+    # surprisingly, there is nothing like this in date or time modules
+    ds = int(dt)
+    nd = int(ds/(24*60*60))
+    ds -= nd*24*60*60
+    nh = int(ds/(3600))
+    ds -= nh*3600
+    nm = int(ds/60)
+    ds -= nm*60
+    ns = ds
 
+    r = ''
+
+    if nd > 0:
+        r = '%dd%02dh%02dm' % (nd, nh, nm)
+    elif nh > 0:
+        r = '%02dh%02dm%02ds' % (nh, nm, ns)
+    elif nm > 0:
+        r = '%02dm%02ds' % (nm, ns)
+    else:
+        r = '%02ds' % ns
+
+    return r
