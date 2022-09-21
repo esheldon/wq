@@ -36,30 +36,40 @@ class JobLister(dict):
             self.user = self.user.split(',')
 
     def execute(self):
-        res = get_listing(port=self.port, full=self.full, user=self.user)
+        res = get_job_listing(port=self.port, full=self.full, user=self.user)
 
         if self.full:
-            if len(res) > 0:
+            if len(res['entries']) > 0:
                 print(yaml.dump(res))
         else:
-            header, entries, fmt, nrun, nwait = res
 
-            if len(entries) > 0:
-
-                for entry in sorted(entries, key=lambda x: x['time_sub']):
-                    print(fmt % entry)
-
-            njobs = nrun + nwait
-            stats = 'Jobs: %s Running: %s Waiting: %s' % (
-                njobs, nrun, nwait,
-            )
-            if self.user is not None:
-                print(' User: %s %s' % (','.join(self.user), stats))
-            else:
-                print(' %s' % stats)
+            lines = get_job_lines(res, user=self.user)
+            for line in lines:
+                print(line)
 
 
-def get_listing(port, full=False, user=None):
+def get_job_lines(job_listing, user=None):
+    lines = []
+
+    lines.append(job_listing['header'])
+
+    if len(job_listing['entries']) > 0:
+
+        for entry in sorted(job_listing['entries'], key=lambda x: x['time_sub']):  # noqa
+            lines.append(job_listing['fmt'] % entry)
+
+    stats = 'Jobs: %s Running: %s Waiting: %s' % (
+        job_listing['njobs'], job_listing['nrun'], job_listing['nwait'],
+    )
+    if user is not None:
+        lines.append(' User: %s %s' % (','.join(user), stats))
+    else:
+        lines.append(' %s' % stats)
+
+    return lines
+
+
+def get_job_listing(port, full=False, user=None):
     """
     Get the job listing and other info to print stats
 
@@ -154,7 +164,14 @@ def get_listing(port, full=False, user=None):
         'cmd': 'Cmd', 'Tq': 'Tq', 'Trun': 'Trun',
     }
 
-    return header, entries, fmt, nrun, nwait
+    return {
+        'header': header,
+        'entries': entries,
+        'fmt': fmt,
+        'nrun': nrun,
+        'nwait': nwait,
+        'njobs': nrun + nwait,
+    }
 
 
 def _extract_status(r):
