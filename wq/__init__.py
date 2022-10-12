@@ -1,6 +1,6 @@
 # flake8: noqa
 
-__version__ = '0.9.0'
+from .version import __version__
 
 from . import server
 
