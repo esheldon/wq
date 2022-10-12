@@ -1,5 +1,6 @@
 import yaml
 from .util import get_time_diff, send_message
+from .defaults import DEFAULT_PORT
 
 
 class JobLister(dict):
@@ -68,7 +69,7 @@ def get_job_lines(job_listing, user=None):
     return lines
 
 
-def get_job_listing(port, full=False, user=None):
+def get_job_listing(port=DEFAULT_PORT, full=False, user=None):
     """
     Get the job listing and other info to print stats
 

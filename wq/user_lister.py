@@ -1,6 +1,7 @@
 import sys
 from optparse import OptionParser
 from .util import send_message
+from .defaults import DEFAULT_PORT
 
 
 class UsersLister(dict):
@@ -42,7 +43,7 @@ class UserLister(dict):
         print_users(userdata)
 
 
-def get_user_data(port, user=None):
+def get_user_data(port=DEFAULT_PORT, user=None):
     message = {}
     if user is None:
         message['command'] = 'users'

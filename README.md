@@ -379,6 +379,15 @@ Here is an example listing
     esheldon  10     80      {Ncores:100;Njobs:10}
     anze      35     35      {}
 
+Listing a single user
+
+    wq user esheldon
+
+gives
+
+    User      Njobs  Ncores  Limits
+    esheldon  10     80      {Ncores:100;Njobs:10}
+
 Refreshing the Queue
 --------------------
 
@@ -445,9 +454,44 @@ port will typically be "in use" from the previous instance for 30 seconds or
 so, so be patient; it is no big deal for the server to be off for a while, it
 will catch up.  Users will just have to wait a bit to submit jobs.
 
+### Using the library
+
+Get user information
+```python
+import wq.user_lister
+
+all_user_data = wq.user_lister.get_user_data()
+wq.user_lister.print_users(all_user_data)
+
+jdoe_data = wq.user_lister.get_user_data(user='jdoe')
+wq.user_lister.print_users(jdoe_data)
+```
+
+Get cluster status
+```python
+import wq.status
+
+status = wq.status.get_status()
+wq.status.print_status(status)
+```
+
+Get the job listing
+```python
+import wq.job_lister
+
+# all jobs
+job_listing = wq.job_lister.get_job_listing()
+
+# jobs for a particular user
+job_listing = wq.job_lister.get_job_listing(user='jdoe')
+
+# detailed information for each job
+job_listing = wq.job_lister.get_job_listing(full=True)
+```
+
 Installation
 ------------
 
 ### Dependencies
 
-You need python 2.7 or later and pyyaml <http://pyyaml.org/>
+pyyaml <http://pyyaml.org/>

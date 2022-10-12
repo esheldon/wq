@@ -11,5 +11,3 @@ PRIORITY_LIST = ['block', 'high', 'med', 'low']
 
 # how many seconds to wait before restart
 RESTART_DELAY = 60
-
-

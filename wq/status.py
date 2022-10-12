@@ -1,5 +1,6 @@
 from optparse import OptionParser
 from .util import send_message
+from .defaults import DEFAULT_PORT
 
 
 class Status(dict):
@@ -28,7 +29,7 @@ def print_status(status):
         print(line)
 
 
-def get_status(port):
+def get_status(port=DEFAULT_PORT):
     """
     get status info from the server
     """
