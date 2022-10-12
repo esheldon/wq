@@ -26,14 +26,17 @@ e.g.
 """
 from __future__ import print_function
 
-import socket
 import sys
 from sys import stderr
-import yaml
-from yaml import YAMLError
+# import yaml
 import os
 import signal
 import wq
+from wq import send_message
+from wq.util import yaml_load
+from wq.job_lister import JobLister
+from wq.status import Status
+from wq.user_lister import UsersLister, UserLister
 import time
 import subprocess
 from subprocess import SubprocessError
@@ -41,12 +44,9 @@ import uuid
 
 from optparse import OptionParser
 
+
 # need to move this into server.py and require a real installation
 _COMMANDS = ['serve', 'sub', 'ls', 'stat', 'rm', 'refresh']
-
-
-def yaml_load(obj):
-    return yaml.load(obj, Loader=yaml.SafeLoader)
 
 
 class ServerWrapper(object):
@@ -94,258 +94,7 @@ class ServerWrapper(object):
         self.server.run()
 
 
-class JobLister(dict):
-    """
-    usage: wq ls [options]
-
-    print the job list to stdout.
-
-    If -u/--user is sent, the listing is restricted to that user/users.
-
-    If -f/--full is sent, the full job listing is given.  This is a yaml
-    document that can be read and processed to provide a customised
-    listing.
-    """
-
-    def __init__(self, port, args):
-        self.port = port
-        self._process_args(args)
-
-    def _process_args(self, args):
-        parser = OptionParser(JobLister.__doc__)
-        parser.add_option("-u", "--user", default=None,
-                          help=("Only list jobs for the user.  can be "
-                                "a comma separated list"))
-        parser.add_option("-f", "--full", action='store_true',
-                          help="Give a full job listing as a YAML stream.")
-
-        options, args = parser.parse_args(args)
-        self.user = options.user
-        self.full = options.full
-
-        if self.user is not None:
-            self.user = self.user.split(',')
-
-    def execute(self):
-        message = {}
-        message['command'] = 'ls'
-        resp = send_message(self.port, message)
-
-        if self.full:
-            if self.user is not None:
-                show = [r for r in resp['response'] if r['user'] in self.user]
-            else:
-                show = resp['response']
-            if len(show) > 0:
-                print(yaml.dump(show))
-
-            return
-
-        names = ['pid', 'user', 'st', 'pri', 'nc',
-                 'nh', 'host0', 'Tq', 'Trun', 'cmd']
-
-        lens = {}
-        for k in names:
-            lens[k] = len(k)
-
-        nrun = 0
-        nwait = 0
-        lines = []
-        timenow = time.time()
-        for r in resp['response']:
-            if 'user' not in r:
-                continue
-
-            if self.user is None or r['user'] in self.user:
-                if r['status'] == 'run':
-                    nrun += 1
-                else:
-                    nwait += 1
-
-                this = {}
-                this['pid'] = r['pid']
-                this['user'] = r['user']
-                this['pri'] = r['priority']
-                this['st'] = self._get_status(r)
-                this['nc'] = self._get_ncores(r)
-                # this may replace command with job_name, if it exists
-                this['cmd'] = self._get_command(r)
-                this['Tq'] = self._get_time_in(r, timenow)
-                this['Trun'] = self._get_time_run(r, timenow)
-
-                this['nh'] = self._get_nhosts(r)
-
-                # this is the first host on the list
-                this['host0'] = self._get_host0(r)
-
-                # for sorting
-                this['time_sub'] = r['time_sub']
-
-                for k in this:
-                    if k in lens:
-                        lens[k] = max(lens[k], len(('%s' % this[k])))
-
-                lines.append(this)
-
-        fmt = []
-        for k in names:
-            if k in ['Tq', 'Trun']:
-                align = ''
-            else:
-                align = '-'
-
-            fmt.append('%('+k+')'+align+str(lens[k])+'s')
-
-        fmt = ' '.join(fmt)
-        fmt = ' '+fmt
-
-        # this is the header for each column
-        if len(lines) > 0:
-            print(
-                fmt % {'pid': 'Pid', 'user': 'User',
-                       'st': 'St', 'pri': 'Pri', 'nc': 'Nc',
-                       'nh': 'Nh', 'host0': 'Host0',
-                       'cmd': 'Cmd', 'Tq': 'Tq', 'Trun': 'Trun'}
-            )
-
-        for line in sorted(lines, key=lambda x: x['time_sub']):
-            print(fmt % line)
-
-        njobs = nrun+nwait
-        stats = 'Jobs: %s Running: %s Waiting: %s' % (njobs, nrun, nwait)
-        if self.user is not None:
-            print(' User: %s %s' % (','.join(self.user), stats))
-        else:
-            print(' %s' % stats)
-
-    def _get_ncores(self, r):
-        if r['status'] == 'run':
-            return len(r['hosts'])
-        else:
-            return '-'
-
-    def _time_diff(self, dt):
-        # surprisingly, there is nothing like this in date or time modules
-        ds = int(dt)
-        nd = int(ds/(24*60*60))
-        ds -= nd*24*60*60
-        nh = int(ds/(3600))
-        ds -= nh*3600
-        nm = int(ds/60)
-        ds -= nm*60
-        ns = ds
-
-        r = ''
-
-        if nd > 0:
-            r = '%dd%02dh%02dm' % (nd, nh, nm)
-        elif nh > 0:
-            r = '%02dh%02dm%02ds' % (nh, nm, ns)
-        elif nm > 0:
-            r = '%02dm%02ds' % (nm, ns)
-        else:
-            r = '%02ds' % ns
-
-        return r
-
-    def _get_time_in(self, r, timenow):
-        return self._time_diff(timenow-r['time_sub'])
-
-    def _get_time_run(self, r, timenow):
-        if r['status'] == 'run':
-            return self._time_diff(timenow-r['time_run'])
-        else:
-            return '-'
-
-    def _get_host0(self, r):
-        """
-        Get the first host in the list
-        """
-        if r['status'] != 'run':
-            return '-'
-
-        if not r['hosts']:
-            return '-'
-        else:
-            return r['hosts'][0]
-
-    def _get_nhosts(self, r):
-        if r['status'] == 'run':
-            hd = {}
-            for host in r['hosts']:
-                hd[host] = host
-            return len(hd)
-        else:
-            return '-'
-
-    def _get_status(self, r):
-        if self.full:
-            if r['status'] == 'run':
-                return 'running'
-            else:
-                return r['reason']
-        else:
-            if r['status'] == 'run':
-                return 'R'
-            else:
-                return 'W'
-
-    def _get_command(self, r):
-        c = r['job_name']
-
-        # remove spaces from name so we can use awk on
-        # the output of wq ls
-        c = '-'.join(str(c).split())
-        return c
-
-
-class Stats(dict):
-    """
-    usage: wq stat
-
-    print the status of the queue and compute cluster
-    """
-
-    def __init__(self, port, args):
-        self.port = port
-        parser = OptionParser(Stats.__doc__)
-        options, args = parser.parse_args(args)
-
-    def execute(self):
-        message = {}
-        message['command'] = 'stat'
-
-        resp = send_message(self.port, message)
-
-        status = resp['response']
-
-        wq.server.print_stat(status)
-
-
-class UsersLister(dict):
-    """
-    usage: wq users
-
-    print user info for the system
-    """
-
-    def __init__(self, port, args):
-        self.port = port
-        parser = OptionParser(Stats.__doc__)
-        options, args = parser.parse_args(args)
-
-    def execute(self):
-        message = {}
-        message['command'] = 'users'
-
-        resp = send_message(self.port, message)
-
-        users = resp['response']
-
-        wq.server.print_users(users)
-
-
-_LIMIT_VALID_KEYS = ['Njobs', 'Ncores']
+_LIMIT_VALID_KEYS = ['Njobs', 'run', 'Ncores', 'cores']
 
 
 class Limiter(dict):
@@ -353,9 +102,21 @@ class Limiter(dict):
     usage: wq limit "key1:val1; key2:val2; ..."
 
     Place limits on the user such as
+        # limit number of running jobs.
+        wq limit "run: 10"
+
+        # limit total number of cores.
+        wq limit "cores: 120"
+
+        # limits on both
+        wq limit "cores: 120; run: 25"
+
+    These versions also allowed for backwards compatibility
+        # limit number of running jobs.
         wq limit "Njobs: 10"
+
+        # limit total number of cores.
         wq limit "Ncores: 120"
-        wq limit "Ncores: 120; Njobs: 25"
 
     To clear your limits
         wq limit clear
@@ -886,76 +647,17 @@ class Submitter(dict):
             print('%-15s %s' % (kk, pf), file=stderr)
 
 
-def socket_connect(sock, conninfo, crash_on_timeout=False):
-    """
-    crash will only happen if timeouts have been enabled, otherwise we just
-    wait
-    """
-    if crash_on_timeout:
-        sock.connect(conninfo)
-    else:
-        while True:
-            try:
-                sock.connect(conninfo)
-                break
-            except socket.timeout:
-                pass
-
-
-def send_message(port, message, timeout=None, crash_on_timeout=False):
-
-    if len(message) == 0:
-        raise ValueError("message must have len > 0")
-
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # make sure to set timeout *before* calling connect()
-    if timeout is not None:
-        sock.settimeout(timeout)
-
-    conninfo = (wq.HOST, port)
-    socket_connect(sock, conninfo, crash_on_timeout=crash_on_timeout)
-
-    rdict = None
-    try:
-        jmess = yaml.dump(message)
-
-        wq.server.socket_send(sock, jmess)
-        data = wq.server.socket_recieve(sock, wq.BUFFSIZE)
-
-        sock.close()
-
-        try:
-            rdict = yaml_load(data)
-        except YAMLError as err:
-            print(str(err), file=stderr)
-            print(data, file=stderr)
-            sys.exit(1)
-
-        if 'error' in rdict:
-            raise RuntimeError("Error reported by server: %s" % rdict['error'])
-
-        if 'response' not in rdict:
-            raise RuntimeError("Internal error. Expected a response "
-                               "and got screwed.")
-
-    finally:
-        sock.close()
-
-    if rdict is None:
-        sys.exit(1)
-
-    return rdict
-
-
 def get_command_obj(port, args):
     if args[0] == 'sub':
         command_class = Submitter
     elif args[0] == 'ls':
         command_class = JobLister
     elif args[0] == 'stat':
-        command_class = Stats
+        command_class = Status
     elif args[0] == 'users':
         command_class = UsersLister
+    elif args[0] == 'user':
+        command_class = UserLister
     elif args[0] == 'limit':
         command_class = Limiter
     elif args[0] == 'rm':
