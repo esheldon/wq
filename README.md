@@ -278,16 +278,16 @@ Placing limits on how many jobs you run or cores you use
 You can limit the number of jobs you can run at once, or the number
 of cores you use.  For example, to limit to 25 jobs
 
-    wq limit "Njobs: 25"
+    wq limit "run: 25"
 
 You can also specify Ncores, or even combine them
 
-    wq limit "Njobs: 25; Ncores: 100"
+    wq limit "run: 25; cores: 100"
 
 These data are saved in a file on disk and reloaded when the server is
 restarted.  You can remove a limit by setting it to -1, e.g.
 
-    wq limit "Njobs: -1"
+    wq limit "run: -1"
 
 Remove all limits using the clear sub-command
 
@@ -375,9 +375,9 @@ jobs running, the number of cores used, and the user's limits:
 
 Here is an example listing
 
-    User      Njobs  Ncores  Limits
-    esheldon  10     80      {Ncores:100;Njobs:10}
-    anze      35     35      {}
+    User      run    cores  Limits
+    esheldon  10     80     {cores:100; run:10}
+    anze      35     35     {}
 
 Listing a single user
 

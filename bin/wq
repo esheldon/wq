@@ -10,7 +10,7 @@ options for each command
     stat:       Get the status of the cluster/queue.
     rm:         Remove a job or all jobs for a user.
     refresh:    Force a refresh of the job queue.
-    limit:      Place limits on a user such as Ncores or Njobs.
+    limit:      Place limits on a user such as run or cores.
     serve:      Run a server.
     node: 	Set systems from offline to online or vice versa.
 
