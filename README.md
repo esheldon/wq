@@ -280,7 +280,7 @@ of cores you use.  For example, to limit to 25 jobs
 
     wq limit "run: 25"
 
-You can also specify Ncores, or even combine them
+You can also specify cores, or even combine them
 
     wq limit "run: 25; cores: 100"
 
@@ -385,8 +385,8 @@ Listing a single user
 
 gives
 
-    User      Njobs  Ncores  Limits
-    esheldon  10     80      {Ncores:100;Njobs:10}
+    User      run    cores  Limits
+    esheldon  10     80     {cores:100; run:10}
 
 Refreshing the Queue
 --------------------
