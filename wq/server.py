@@ -1279,6 +1279,8 @@ class JobQueue(object):
             self.response['error'] = newjob['reason']
         else:
 
+            self.users.increment_user_jobcount(newjob)
+
             if not newjob.match_users(self.users):
                 # the user limits would be exceeded (or something) if we run
                 # this job
@@ -1292,7 +1294,6 @@ class JobQueue(object):
 
                 # keep statistics for each user
                 # increment count of running jobs and cores used
-                self.users.increment_user_jobcount(newjob)
                 self.users.increment_user_running(newjob)
 
             # this will create a pid.wait or pid.run depending on status if
