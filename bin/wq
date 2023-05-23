@@ -5,14 +5,16 @@
 Basic command modes are the following.  There are additional
 options for each command
 
-    sub:        Submit a job.
-    ls:         Print the job listing
-    stat:       Get the status of the cluster/queue.
-    rm:         Remove a job or all jobs for a user.
-    refresh:    Force a refresh of the job queue.
-    limit:      Place limits on a user such as run or cores.
-    serve:      Run a server.
-    node: 	Set systems from offline to online or vice versa.
+    sub:      Submit a job.
+    rm:       Remove a job or all jobs for a user.
+    ls:       Print the job listing
+    stat:     Get the status of the cluster/queue.
+    users:    Get a listing of users, their job counts and limits
+    user:     Same as "users" but for a single user
+    limit:    Place limits on a user such as run or cores.
+    refresh:  Force a refresh of the job queue.
+    serve:    Run a server.
+    node: 	  Set systems from offline to online or vice versa.
 
 To get help on each command, use -h, for example
     %prog sub -h
