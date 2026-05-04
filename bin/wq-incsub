@@ -1,0 +1,209 @@
+#!/usr/bin/env python
+import sys
+import os
+import time
+import datetime
+import argparse
+import random
+import esutil as eu
+import wq
+
+
+def get_args():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('flist', nargs='+')
+
+    parser.add_argument('-F', '--isfile', action='store_true',
+                        help=('the argument is a file holding a list '
+                              'rather than a list of files'))
+
+    parser.add_argument('--poll', type=int, default=30,
+                        help=('time between polls of wq status when '
+                              'we are at max allowed obs'))
+
+    parser.add_argument('-r', '--req', default=None,
+                        help='over-ride requirements')
+
+    parser.add_argument('-n', '--njobs',
+                        type=int, default=300,
+                        help='max number of jobs, default 300')
+
+    parser.add_argument('-s', '--sleep-time', default=.2,
+                        type=float,
+                        help=('minimum time to sleep between individual '
+                              'submisions.'))
+
+    parser.add_argument('-f', '--force', action='store_true',
+                        help=('force starting of all jobs, even if '
+                              'a log file is present.'))
+
+    parser.add_argument('-d', '--dryrun', action='store_true',
+                        help='dry run.  Just print number of jobs and exit.')
+
+    parser.add_argument('--rand', action='store_true',
+                        help='randomize the order of files')
+
+    return parser.parse_args()
+
+
+def get_njobs(user):
+    message = {'command': 'user', 'user': user}
+
+    res = wq.send_message(wq.DEFAULT_PORT, message)
+    response = res['response']
+    if len(response) == 0:
+        return 0
+    else:
+        return response[user]['total']
+
+
+def get_diffjobs(user, maxjobs):
+    njobs = get_njobs(user)
+    diffjobs = maxjobs - njobs
+    return diffjobs, njobs
+
+
+def get_log_fname(fname):
+    return fname+'.wqlog'
+
+
+def get_req(args):
+    if args.req:
+        req = """ -r "%s" """ % args.req
+    else:
+        req = ""
+
+    return req
+
+
+def submit_job(job_fname, req):
+    """
+    Put the job in the background
+
+    Use os.system because it disconnects from
+    the python script
+    """
+
+    dirname, fname_local = os.path.split(job_fname)
+
+    if dirname != '':
+        ds = eu.ostools.DirStack()
+        ds.push(dirname)
+
+    log_local = get_log_fname(fname_local)
+
+    command = """
+        nohup wq sub {req} "{jobf}" > "{logf}" 2>&1 &
+    """.format(
+        jobf=fname_local,
+        logf=log_local,
+        req=req,
+    )
+    os.system(command)
+
+    if dirname != '':
+        ds.pop()
+
+
+def submit_jobs(flist, num, total, req, sleep_time):
+
+    for i in range(num):
+        if len(flist) == 0:
+            break
+
+        nleft = len(flist)
+
+        fname = flist.pop()
+
+        date = datetime.datetime.now().strftime('%H:%M:%S')
+
+        thisnum = total-nleft+1
+        perc = 100.*thisnum/float(total)
+        tup = (fname, date, thisnum, total, perc)
+
+        print("    submitting %s %s %s/%s (%i%%)" % tup)
+        submit_job(fname, req)
+
+        time.sleep(sleep_time)
+
+
+def go(flist, args):
+
+    nfiles = len(flist)
+
+    maxjobs = args.njobs
+    polltime = args.poll
+    sleep_time = args.sleep_time
+
+    req = get_req(args)
+    if args.rand:
+        random.shuffle(flist)
+    else:
+        # we reverse since we will treat like a stack
+        flist = list(reversed(flist))
+
+    user = os.environ['USER']
+
+    print("submitting jobs for user: %s" % user)
+    print("number in list:           %s" % len(flist))
+    print("will limit to maxjobs:    %s" % maxjobs)
+
+    if args.dryrun:
+        return
+
+    diffjobs, njobs = get_diffjobs(user, maxjobs)
+
+    while len(flist) > 0:
+
+        while diffjobs <= 0:
+            time.sleep(polltime)
+            diffjobs, njobs = get_diffjobs(user, maxjobs)
+
+        print("Found %s jobs diffjobs: %s" % (njobs, diffjobs))
+
+        submit_jobs(flist, diffjobs, nfiles, req, sleep_time)
+
+        # we set diffjobs to zero so we will sleep for the poll time before
+        # checking again
+        diffjobs = 0
+
+
+def remove_submitted(flist):
+    print('trimming to unsubmitted jobs...', end='')
+    trimmed_flist = []
+    for f in flist:
+        logf = get_log_fname(f)
+        if not os.path.exists(logf):
+            trimmed_flist.append(f)
+    print('kept %d/%d' % (len(trimmed_flist), len(flist)))
+    return trimmed_flist
+
+
+def main():
+    """
+    Just to provide a clean exit when we get keyboard interrupts
+    """
+
+    try:
+        args = get_args()
+        flist = args.flist
+
+        if args.isfile:
+            fname = flist[0]
+            with open(fname) as fobj:
+                flist = []
+                for line in fobj:
+                    line = line.strip()
+                    if line != '':
+                        flist.append(line)
+
+        if not args.force:
+            flist = remove_submitted(flist)
+
+        go(flist, args)
+    except KeyboardInterrupt:
+        sys.exit(1)
+
+
+main()

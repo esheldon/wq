@@ -1,0 +1,376 @@
+#!/usr/bin/env python
+
+import subprocess
+import argparse
+
+import curses
+import wq
+import wq.status
+import wq.user_lister
+import wq.job_lister
+
+try:
+    import curses.wrapper.wrapper as curses_wrapper
+except ImportError:
+    from curses import wrapper as curses_wrapper
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-u", "--user",
+                    help="Restrict the list to the specified user.")
+parser.add_argument(
+    "-r",
+    "--refresh",
+    type=float,
+    default=30,
+    help="refresh rate in seconds.  default is %default",
+)
+
+parser.add_argument(
+    "-d",
+    "--dark",
+    action="store_true",
+    help="Use a color scheme appropriate for dark backgrounds",
+)
+parser.add_argument(
+    "-l",
+    "--light",
+    action="store_true",
+    help="Use a color scheme appropriate for light backgrounds",
+)
+
+parser.add_argument(
+    "-v",
+    "--vertical-split",
+    action="store_true",
+    help=(
+        "Split the window vertically and show the cluster "
+        "status in the right pane"
+    ),
+)
+parser.add_argument(
+    "-s",
+    "--horizontal-split",
+    action="store_true",
+    help=(
+        "Split the window horizontally and show the cluster "
+        "status in the lower pane"
+    ),
+)
+
+default = 1
+black = 0 + 2
+red = 1 + 2
+green = 2 + 2
+yellow = 3 + 2
+blue = 4 + 2
+magenta = 5 + 2
+cyan = 6 + 2
+white = 7 + 2
+
+# don't have to be too careful about things like widths of fields in the
+# formats since we will process the results anyway
+
+
+class WQWatcher:
+    def __init__(self, **keys):
+
+        self.user = keys.get("user", None)
+        self.refresh_rate = keys.get("refresh_rate", 30)
+        self.background = keys.get("background", None)
+        self.split = keys.get("split", None)
+
+        self.ls_command = "wq ls"
+        self.stat_command = "wq stat"
+        self.users_command = "wq users"
+
+        if self.user is not None:
+            self.ls_command = self.ls_command + " -u " + self.user
+
+        curses_wrapper(self.wq_watch)
+
+    def wq_watch(self, stdscr):
+
+        self.setup_windows(stdscr)
+
+        # wait for refresh seconds for user input before refreshing.  If the
+        # user input is anything but 'q' then refresh again
+
+        tout_ms = self.refresh_rate * 1000
+        self.win1.timeout(tout_ms)
+        while 1:
+            self.erase()
+            if self.split:
+                self.draw_separator()
+
+            job_listing = self.get_job_listing()
+
+            statline, lines = self.extract_job_lines(job_listing)
+
+            self.write_statline(self.win1, self.maxx1, statline)
+            self.write_listing(self.win1, self.maxx1, lines)
+
+            if self.split:
+                status_data = self.get_status()
+                users_data = self.get_user_data()
+
+                stat_statline, status_lines = self.extract_stat_lines(
+                    lines=status_data, users=users_data
+                )
+
+                self.write_statline(self.win2, self.maxx2, stat_statline)
+                self.write_listing(self.win2, self.maxx2, status_lines)
+
+            c = self.win1.getch()
+            if c == ord("q"):
+                break
+
+    def erase(self):
+        self.win1.erase()
+        if self.split is not None:
+            self.win2.erase()
+
+    def write_listing(self, win, maxx, lines):
+
+        for ii, line in enumerate(lines):
+            win.addstr(ii + 2, 0, line[0: maxx - 1])
+
+        win.refresh()
+
+    def write_statline(self, win, maxx, statline):
+
+        win.addstr(0, 0, statline[0: maxx - 1])
+        win.refresh()
+
+    def draw_separator(self):
+        # using a zero for the character instead of a string
+        # will cause it to join the dashes
+        linechar = 0
+
+        if self.split == "v":
+            self.scr.vline(0, self.sep_pos, linechar, self.maxy - 1)
+        elif self.split == "h":
+            self.scr.hline(self.sep_pos, 0, linechar, self.maxx - 1)
+        else:
+            pass
+        self.scr.refresh()
+
+    def get_job_listing(self):
+        job_listing = wq.job_lister.get_job_listing(
+            wq.DEFAULT_PORT, user=self.user,
+        )
+        return wq.job_lister.get_job_lines(
+            job_listing=job_listing,
+            user=self.user,
+        )
+
+    def get_status(self):
+        status = wq.status.get_status(wq.DEFAULT_PORT)
+        return wq.status.get_status_lines(status)
+
+    def get_user_data(self):
+        user_data = wq.user_lister.get_user_data(
+            wq.DEFAULT_PORT, user=self.user,
+        )
+        return wq.user_lister.get_user_lines(user_data)
+
+    def _run_cmd(self, cmd):
+        pobj = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
+        )
+        stdout_ret, stderr_ret = pobj.communicate()
+
+        stdout_ret = stdout_ret.decode("utf-8")
+        return stdout_ret
+
+    def extract_job_lines(self, lines):
+        statline = ""
+
+        if len(lines) == 0:
+            return statline, lines
+
+        statline = lines.pop()
+
+        # taking back 3 for the stat line
+        lines = lines[0: self.maxy1 - 2 - 1]
+
+        return statline, lines
+
+    def extract_stat_lines(
+        self,
+        lines,
+        users,
+    ):
+
+        statline = ""
+
+        keeplines = []
+
+        if len(lines) == 0:
+            print("zero lines")
+            return statline, keeplines
+
+        while True:
+            statline = lines.pop()
+            if len(statline) != 0:
+                break
+
+            if len(lines) == 0:
+                break
+
+        if len(lines) == 0:
+            return statline, lines
+
+        for line in lines:
+            if len(line) > 0:
+                keeplines.append(line)
+
+        keeplines += [""] + users
+
+        keeplines = keeplines[0: self.maxy2 - 2 - 1]
+
+        return statline, keeplines
+
+    def setup_windows(self, stdscr):
+        self.scr = stdscr
+        self.make_color_pairs()
+        self.set_colors()
+
+        self.maxy, self.maxx = stdscr.getmaxyx()
+
+        if self.split == "v":
+            # vertical split
+
+            # split in half with a divider line
+            xsize = self.maxx
+            if (xsize % 2) == 0:
+                xs1 = xsize // 2
+                xs2 = xs1 - 1
+            else:
+                xs1 = xsize // 2
+                xs2 = xs1
+            x01 = 0
+            y01 = 0
+            x02 = xs1 + 1
+            y02 = 0
+
+            self.win1 = curses.newwin(self.maxy, xs1, y01, x01)
+            self.win2 = curses.newwin(self.maxy, xs2, y02, x02)
+
+            self.sep_pos = xs1
+
+            self.maxy2, self.maxx2 = self.win2.getmaxyx()
+
+        elif self.split == "h":
+            # horizontal split
+
+            # split in half with a divider line
+            ysize = self.maxy
+            if (ysize % 2) == 0:
+                ys1 = ysize // 2
+                ys2 = ys1 - 1
+            else:
+                ys1 = ysize // 2
+                ys2 = ys1
+            x01 = 0
+            y01 = 0
+            x02 = 0
+            y02 = ys1 + 1
+
+            self.win1 = curses.newwin(ys1, self.maxx, y01, x01)
+            self.win2 = curses.newwin(ys2, self.maxx, y02, x02)
+
+            self.sep_pos = ys1
+
+            self.maxy2, self.maxx2 = self.win2.getmaxyx()
+
+        else:
+            x0 = 0
+            y0 = 0
+
+            self.win1 = curses.newwin(self.maxy, self.maxx, y0, x0)
+
+        self.maxy1, self.maxx1 = self.win1.getmaxyx()
+
+    def make_color_pairs(self):
+        curses.use_default_colors()
+        curses.init_pair(default, -1, -1)
+        bkgd_color = -1
+
+        curses.init_pair(black, curses.COLOR_BLACK, bkgd_color)
+        curses.init_pair(red, curses.COLOR_RED, bkgd_color)
+        curses.init_pair(green, curses.COLOR_GREEN, bkgd_color)
+        curses.init_pair(yellow, curses.COLOR_YELLOW, bkgd_color)
+        curses.init_pair(blue, curses.COLOR_BLUE, bkgd_color)
+        curses.init_pair(magenta, curses.COLOR_MAGENTA, bkgd_color)
+        curses.init_pair(cyan, curses.COLOR_CYAN, bkgd_color)
+        curses.init_pair(white, curses.COLOR_WHITE, bkgd_color)
+
+    def set_colors(self):
+        self.colors = {}
+        if self.background == "light":
+            self.colors["njobs"] = curses.color_pair(blue)
+            self.colors["queue"] = curses.color_pair(blue)
+            self.colors["user"] = curses.color_pair(blue)
+            self.colors["R"] = curses.color_pair(green)
+            self.colors["I"] = curses.color_pair(magenta)
+            self.colors["H"] = curses.color_pair(red)
+            self.colors["X"] = curses.color_pair(red)
+            self.colors["C"] = curses.color_pair(green)
+        elif self.background == "dark":
+            self.colors["njobs"] = curses.color_pair(cyan)
+            self.colors["queue"] = curses.color_pair(green)
+            self.colors["user"] = curses.color_pair(green)
+            self.colors["R"] = curses.color_pair(green)
+            self.colors["I"] = curses.color_pair(yellow)
+            self.colors["H"] = curses.color_pair(red)
+            self.colors["X"] = curses.color_pair(red)
+            self.colors["C"] = curses.color_pair(green)
+        else:
+            # this should show up on white and black backgrounds pretty well
+            self.colors["njobs"] = curses.color_pair(magenta)
+            self.colors["queue"] = curses.color_pair(green)
+            self.colors["user"] = curses.color_pair(green)
+            self.colors["R"] = curses.color_pair(green)
+            self.colors["I"] = curses.color_pair(red)
+            self.colors["H"] = curses.color_pair(red)
+            self.colors["X"] = curses.color_pair(red)
+            self.colors["C"] = curses.color_pair(green)
+
+
+#
+# main program
+#
+
+
+def main():
+    try:
+        args = parser.parse_args()
+
+        if args.vertical_split:
+            split = "v"
+        elif args.horizontal_split:
+            split = "h"
+        else:
+            split = None
+
+        if args.dark:
+            background = "dark"
+        elif args.light:
+            background = "light"
+        else:
+            background = None
+
+        WQWatcher(
+            user=args.user,
+            refresh_rate=args.refresh,
+            background=background,
+            split=split,
+        )
+
+        return
+
+    except KeyboardInterrupt:
+        pass
+
+
+main()
